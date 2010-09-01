@@ -72,12 +72,15 @@ public class Monitor extends Thread
 			catch (InterruptedException ex)
 			{
 				logger.log(Level.SEVERE, "Monitor thread interrupted", ex);
+
 				break;
 			}
 			catch (Exception ex)
 			{
 				logger.log(Level.SEVERE,
 						"Uncaught exception while processing jobs.", ex);
+
+				break;
 			}
 		}
 

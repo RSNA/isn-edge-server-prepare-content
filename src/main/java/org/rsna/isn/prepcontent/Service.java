@@ -52,7 +52,7 @@ public class Service implements WrapperListener
 		catch (InterruptedException ex)
 		{
 			logger.log(Level.WARNING,
-					"Uncaught exception while stopping processor", ex);
+					"Uncaught exception while stopping job monitor", ex);
 
 			return 1;
 		}
