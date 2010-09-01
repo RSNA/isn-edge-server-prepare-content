@@ -20,7 +20,7 @@ public class ExamDao extends Dao
 		Connection con = getConnection();
 		try
 		{
-			String select = "SELECT * from exam_status WHERE exam_id = " + examId;
+			String select = "SELECT * from v_exam_status WHERE exam_id = " + examId;
 
 			ResultSet rs = con.createStatement().executeQuery(select);
 			if(rs.next())

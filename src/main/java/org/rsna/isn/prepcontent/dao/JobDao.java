@@ -26,7 +26,7 @@ public class JobDao extends Dao
 		{
 			Set<Job> jobs = new LinkedHashSet<Job>();
 
-			String select = "SELECT * FROM job_status WHERE status =  " + Job.NEW
+			String select = "SELECT * FROM v_job_status WHERE status =  " + Job.NEW
 					+ " ORDER BY last_transaction_timestamp LIMIT 1";
 
 			ResultSet rs = con.createStatement().executeQuery(select);

@@ -32,7 +32,7 @@ public class DeviceDao extends Dao
 			{
 				Device device = new Device();
 
-				device.setHost(rs.getString("ip_address"));
+				device.setHost(rs.getString("host"));
 				device.setPort(rs.getInt("port_number"));
 				device.setAeTitle(rs.getString("ae_title"));
 
