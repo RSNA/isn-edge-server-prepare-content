@@ -18,7 +18,7 @@ public abstract class Dao
 	{
 		Class.forName("org.postgresql.Driver");
 
-		return DriverManager.getConnection("jdbc:postgresql://localhost:5432/rsnadb",
+		return DriverManager.getConnection("jdbc:postgresql://localhost:5432/wyatt",
 				"edge", "edge01");
 	}
 

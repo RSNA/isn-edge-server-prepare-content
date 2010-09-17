@@ -66,7 +66,7 @@ public class Worker extends Thread
 					Set<Device> devices = deviceDao.getDevices();
 					for (Device device : devices)
 					{
-						if (DcmUtil.moveStudy(device, job))
+						if (DcmUtil.processJob(device, job))
 						{
 							logger.info("Completed processing of " + job);
 							
