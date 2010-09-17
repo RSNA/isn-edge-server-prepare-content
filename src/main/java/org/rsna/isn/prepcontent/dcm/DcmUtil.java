@@ -34,9 +34,9 @@ public class DcmUtil
 
 	private static final String moveUids[] =
 	{
-		UID.StudyRootQueryRetrieveInformationModelMOVE,
+		//UID.StudyRootQueryRetrieveInformationModelMOVE,
 		UID.PatientRootQueryRetrieveInformationModelMOVE,
-		UID.PatientStudyOnlyQueryRetrieveInformationModelMOVERetired
+		//UID.PatientStudyOnlyQueryRetrieveInformationModelMOVERetired
 	};
 
 	private static final String transferSyntaxes[] =
@@ -124,7 +124,7 @@ public class DcmUtil
 			String accNum = exam.getAccNum();
 
 			DicomObject keys = new BasicDicomObject();
-			keys.putString(Tag.QueryRetrieveLevel, VR.CS, "STUDY");
+			keys.putString(Tag.QueryRetrieveLevel, VR.CS, "PATIENT");
 			keys.putString(Tag.PatientID, VR.LO, mrn);
 			keys.putString(Tag.AccessionNumber, VR.SH, accNum);
 
@@ -158,7 +158,8 @@ public class DcmUtil
 					status = Job.SUCCESSFUL;
 
 					msg = "Successfully retrieved "
-							+ handler.completed + " objects";
+							+ handler.completed + " objects. "
+                                                        + "Waiting to transfer to clearinghouse.";
 
 				}
 
