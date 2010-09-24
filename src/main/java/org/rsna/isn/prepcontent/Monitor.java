@@ -54,7 +54,13 @@ public class Monitor extends Thread
 						long age = System.currentTimeMillis()
 								- exam.getStatusTimestamp().getTime();
 
+						if(age < 0)
+						    age = 0;
+
 						long delay = job.getDelay() * 3600000L;
+
+						if(delay < 0)
+						    delay = 0;
 
 						if ("FINALIZED".equals(status) && (age >= delay))
 						{
