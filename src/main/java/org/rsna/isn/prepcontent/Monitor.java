@@ -5,8 +5,7 @@
 package org.rsna.isn.prepcontent;
 
 import java.util.Set;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import org.apache.log4j.Logger;
 import org.rsna.isn.prepcontent.dao.JobDao;
 import org.rsna.isn.prepcontent.domain.Exam;
 import org.rsna.isn.prepcontent.domain.Job;
@@ -17,7 +16,7 @@ import org.rsna.isn.prepcontent.domain.Job;
  */
 public class Monitor extends Thread
 {
-	private static final Logger logger = Logger.getLogger(Monitor.class.getName());
+	private static final Logger logger = Logger.getLogger(Monitor.class);
 
 	private final ThreadGroup group = new ThreadGroup("workers");
 
@@ -77,14 +76,13 @@ public class Monitor extends Thread
 			}
 			catch (InterruptedException ex)
 			{
-				logger.log(Level.SEVERE, "Monitor thread interrupted", ex);
+				logger.fatal("Monitor thread interrupted", ex);
 
 				break;
 			}
 			catch (Exception ex)
 			{
-				logger.log(Level.SEVERE,
-						"Uncaught exception while processing jobs.", ex);
+				logger.fatal("Uncaught exception while processing jobs.", ex);
 
 				break;
 			}

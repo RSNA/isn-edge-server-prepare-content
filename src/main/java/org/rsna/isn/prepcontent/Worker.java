@@ -5,10 +5,9 @@
 package org.rsna.isn.prepcontent;
 
 import java.util.Set;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.exception.ExceptionUtils;
+import org.apache.log4j.Logger;
 import org.rsna.isn.prepcontent.dao.DeviceDao;
 import org.rsna.isn.prepcontent.dao.JobDao;
 import org.rsna.isn.prepcontent.dcm.DcmUtil;
@@ -22,7 +21,7 @@ import org.rsna.isn.prepcontent.domain.Job;
  */
 public class Worker extends Thread
 {
-	private static final Logger logger = Logger.getLogger(Worker.class.getName());
+	private static final Logger logger = Logger.getLogger(Worker.class);
 
 	private final Job job;
 
@@ -82,8 +81,7 @@ public class Worker extends Thread
 			}
 			catch (Exception ex)
 			{
-				logger.log(Level.WARNING,
-						"Uncaught exception while processing job " + job, ex);
+				logger.error("Uncaught exception while processing job " + job, ex);
 
 				String msg = ExceptionUtils.getFullStackTrace(ex);
 				dao.updateStatus(job, Job.FAILED, msg);
@@ -91,8 +89,7 @@ public class Worker extends Thread
 		}
 		catch (Exception ex)
 		{
-			logger.log(Level.WARNING,
-					"Uncaught exception while updating job " + job, ex);
+			logger.error("Uncaught exception while updating job " + job, ex);
 		}
 	}
 

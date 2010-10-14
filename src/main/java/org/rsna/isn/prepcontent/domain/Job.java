@@ -90,7 +90,7 @@ public class Job
 	 */
 	public int getDelay()
 	{
-		return delay;
+		return 0; //return delay;
 	}
 
 	/**

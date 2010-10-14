@@ -1,7 +1,7 @@
  package org.rsna.isn.prepcontent;
 
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import org.apache.log4j.Logger;
+
 
 /**
  * Hello world!
@@ -9,7 +9,7 @@ import java.util.logging.Logger;
  */
 public class App
 {
-	private static final Logger logger = Logger.getLogger(App.class.getName());
+	private static final Logger logger = Logger.getLogger(App.class);
 
 	public static void main(String[] args) throws Exception
 	{
@@ -41,8 +41,7 @@ public class App
 			}
 			catch (InterruptedException ex)
 			{
-				logger.log(Level.SEVERE,
-						"Uncaught exception while stopping job monitor", ex);
+				logger.fatal("Uncaught exception while stopping job monitor", ex);
 			}
 		}
 

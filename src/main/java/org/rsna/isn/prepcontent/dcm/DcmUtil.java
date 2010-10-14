@@ -7,7 +7,7 @@ package org.rsna.isn.prepcontent.dcm;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executor;
-import java.util.logging.Logger;
+import org.apache.log4j.Logger;
 import org.dcm4che2.data.BasicDicomObject;
 import org.dcm4che2.data.DicomObject;
 import org.dcm4che2.data.Tag;
@@ -33,7 +33,7 @@ import org.rsna.isn.prepcontent.domain.Job;
  */
 public class DcmUtil
 {
-    private static final Logger logger = Logger.getLogger(DcmUtil.class.getName());
+    private static final Logger logger = Logger.getLogger(DcmUtil.class);
 
     private static final String moveUids[] =
     {
@@ -136,7 +136,7 @@ public class DcmUtil
 
 	    assoc.release(true);
 
-	    logger.warning("C-FIND not supported by "
+	    logger.warn("C-FIND not supported by "
 		    + device.getAeTitle());
 	}
 
