@@ -4,11 +4,12 @@
  */
 package org.rsna.isn.prepcontent;
 
+import java.util.HashSet;
 import java.util.Set;
 import org.apache.log4j.Logger;
-import org.rsna.isn.prepcontent.dao.JobDao;
-import org.rsna.isn.prepcontent.domain.Exam;
-import org.rsna.isn.prepcontent.domain.Job;
+import org.rsna.isn.dao.JobDao;
+import org.rsna.isn.domain.Exam;
+import org.rsna.isn.domain.Job;
 
 /**
  *
@@ -16,88 +17,174 @@ import org.rsna.isn.prepcontent.domain.Job;
  */
 public class Monitor extends Thread
 {
-	private static final Logger logger = Logger.getLogger(Monitor.class);
+    private static final Logger logger = Logger.getLogger(Monitor.class);
 
-	private final ThreadGroup group = new ThreadGroup("workers");
+    private final ThreadGroup group = new ThreadGroup("workers");
 
-	private boolean keepRunning;
+    private boolean keepRunning;
 
-	public Monitor()
+    public Monitor()
+    {
+	super("monitor");
+    }
+
+    @Override
+    public void run()
+    {
+	logger.info("Started monitor thread");
+
+	JobDao dao = new JobDao();
+	keepRunning = true;
+	while (keepRunning)
 	{
-		super("monitor");
-	}
+	    try
+	    {
+		Set<Job> jobsToProcess = new HashSet();
 
-	@Override
-	public void run()
-	{
-		logger.info("Started monitor thread");
 
-		JobDao dao = new JobDao();
-		keepRunning = true;
-		while (keepRunning)
+		//
+		// Evaluate newly created jobs
+		//
+		Set<Job> newJobs = dao.getJobsByStatus(Job.WAITING_FOR_PREPARE_CONTENT);
+		for (Job job : newJobs)
 		{
-			try
-			{
-				if (group.activeCount() < 5)
-				{
-					Set<Job> jobs = dao.getNewJobs();
+		    Exam exam = job.getExam();
+		    String status = exam.getStatus();
+
+		    if (!"FINALIZED".equals(status))
+		    {
+			dao.updateStatus(job, Job.WAITING_FOR_EXAM_FINALIZATION);
+
+			continue;
+		    }
 
 
-					for (Job job : jobs)
-					{
-						if(group.activeCount() >= 5)
-							break;
+		    long age = System.currentTimeMillis()
+			    - exam.getStatusTimestamp().getTime();
 
-						Exam exam = job.getExam();
-						String status = exam.getStatus();
-						long age = System.currentTimeMillis()
-								- exam.getStatusTimestamp().getTime();
+		    if (age < 0)
+			age = 0;
 
-						if(age < 0)
-						    age = 0;
+		    long delay = job.getDelay() * 3600000L;
 
-						long delay = job.getDelay() * 3600000L;
+		    if (delay < 0)
+			delay = 0;
 
-						if(delay < 0)
-						    delay = 0;
+		    if (age < delay)
+		    {
+			dao.updateStatus(job, Job.WAITING_FOR_DELAY_EXPIRATION);
 
-						if ("FINALIZED".equals(status) && (age >= delay))
-						{
-							dao.updateStatus(job, Job.IN_PROGRESS, "Started prepare content");
+			continue;
+		    }
 
-							Worker worker = new Worker(group, job);
-							worker.start();
-						}
-					}
-				}
-
-
-				sleep(1000);
-			}
-			catch (InterruptedException ex)
-			{
-				logger.fatal("Monitor thread interrupted", ex);
-
-				break;
-			}
-			catch (Exception ex)
-			{
-				logger.fatal("Uncaught exception while processing jobs.", ex);
-
-				break;
-			}
+		    jobsToProcess.add(job);
 		}
 
 
 
-		logger.info("Stopped monitor thread");
+
+
+		//
+		// Evaluate jobs that are waiting for a final report
+		//
+		Set<Job> jobsWaitingForReport = dao.getJobsByStatus(Job.WAITING_FOR_EXAM_FINALIZATION);
+		for (Job job : jobsWaitingForReport)
+		{
+		    Exam exam = job.getExam();
+		    String status = exam.getStatus();
+
+		    if (!"FINALIZED".equals(status))
+			continue;
+
+
+		    long age = System.currentTimeMillis()
+			    - exam.getStatusTimestamp().getTime();
+
+		    if (age < 0)
+			age = 0;
+
+		    long delay = job.getDelay() * 3600000L;
+
+		    if (delay < 0)
+			delay = 0;
+
+		    if (age < delay)
+		    {
+			dao.updateStatus(job, Job.WAITING_FOR_DELAY_EXPIRATION);
+
+			continue;
+		    }
+
+		    jobsToProcess.add(job);
+		}
+
+
+
+
+
+		//
+		// Evaluate jobs that are waiting for transmit delay to
+		// expire
+		//
+		Set<Job> jobsWaitingForTransmitDelay = dao.getJobsByStatus(Job.WAITING_FOR_DELAY_EXPIRATION);
+		for (Job job : jobsWaitingForTransmitDelay)
+		{
+		    Exam exam = job.getExam();
+
+		    long age = System.currentTimeMillis()
+			    - exam.getStatusTimestamp().getTime();
+
+		    if (age < 0)
+			age = 0;
+
+		    long delay = job.getDelay() * 3600000L;
+
+		    if (delay < 0)
+			delay = 0;
+
+		    if (age < delay)
+			continue;
+
+
+		    jobsToProcess.add(job);
+		}
+
+
+
+		for (Job job : jobsToProcess)
+		{
+		    if (group.activeCount() >= 5)
+			break;
+
+		    dao.updateStatus(job, Job.STARTED_DICOM_C_MOVE);
+		    Worker worker = new Worker(group, job);
+		    worker.start();
+		}
+
+		sleep(1000);
+	    } catch (InterruptedException ex)
+	    {
+		logger.fatal("Monitor thread interrupted", ex);
+
+		break;
+	    } catch (Exception ex)
+	    {
+		logger.fatal("Uncaught exception while processing jobs.", ex);
+
+		break;
+	    }
 	}
 
-	public void stopRunning() throws InterruptedException
-	{
-		keepRunning = false;
 
-		join(10 * 1000);
-	}
+
+	logger.info("Stopped monitor thread");
+    }
+
+    public void stopRunning() throws InterruptedException
+    {
+	keepRunning = false;
+
+	join(10 * 1000);
+    }
 
 }

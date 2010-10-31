@@ -6,14 +6,13 @@ package org.rsna.isn.prepcontent;
 
 import java.util.Set;
 import org.apache.commons.lang.StringUtils;
-import org.apache.commons.lang.exception.ExceptionUtils;
 import org.apache.log4j.Logger;
-import org.rsna.isn.prepcontent.dao.DeviceDao;
-import org.rsna.isn.prepcontent.dao.JobDao;
+import org.rsna.isn.dao.DeviceDao;
+import org.rsna.isn.dao.JobDao;
 import org.rsna.isn.prepcontent.dcm.DcmUtil;
-import org.rsna.isn.prepcontent.domain.Device;
-import org.rsna.isn.prepcontent.domain.Exam;
-import org.rsna.isn.prepcontent.domain.Job;
+import org.rsna.isn.domain.Device;
+import org.rsna.isn.domain.Exam;
+import org.rsna.isn.domain.Job;
 
 /**
  *
@@ -48,13 +47,13 @@ public class Worker extends Thread
 
 				if (StringUtils.isEmpty(mrn))
 				{
-					dao.updateStatus(job, Job.FAILED, "No mrn");
+					dao.updateStatus(job, Job.FAILED_TO_PREPARE_CONTENT, "No mrn");
 
 					return;
 				}
 				else if (StringUtils.isEmpty(accNum))
 				{
-					dao.updateStatus(job, Job.FAILED, "No acc #");
+					dao.updateStatus(job, Job.FAILED_TO_PREPARE_CONTENT, "No acc #");
 
 					return;
 				}
@@ -73,7 +72,7 @@ public class Worker extends Thread
 						}
 					}
 
-					dao.updateStatus(job, Job.FAILED,
+					dao.updateStatus(job, Job.DICOM_C_MOVE_FAILED,
 							"Unable to retrive study from any remote device.");
 				}
 
@@ -83,8 +82,7 @@ public class Worker extends Thread
 			{
 				logger.error("Uncaught exception while processing job " + job, ex);
 
-				String msg = ExceptionUtils.getFullStackTrace(ex);
-				dao.updateStatus(job, Job.FAILED, msg);
+				dao.updateStatus(job, Job.FAILED_TO_PREPARE_CONTENT, ex);
 			}
 		}
 		catch (Exception ex)

@@ -22,10 +22,10 @@ import org.dcm4che2.net.NetworkApplicationEntity;
 import org.dcm4che2.net.NetworkConnection;
 import org.dcm4che2.net.NewThreadExecutor;
 import org.dcm4che2.net.TransferCapability;
-import org.rsna.isn.prepcontent.dao.JobDao;
-import org.rsna.isn.prepcontent.domain.Device;
-import org.rsna.isn.prepcontent.domain.Exam;
-import org.rsna.isn.prepcontent.domain.Job;
+import org.rsna.isn.dao.JobDao;
+import org.rsna.isn.domain.Device;
+import org.rsna.isn.domain.Exam;
+import org.rsna.isn.domain.Job;
 
 /**
  *
@@ -101,14 +101,14 @@ public class DcmUtil
 	    if (error != null)
 	    {
 		JobDao dao = new JobDao();
-		dao.updateStatus(job, Job.FAILED, error);
+		dao.updateStatus(job, Job.DICOM_C_MOVE_FAILED, error);
 
 		return true;
 	    }
 	}
 
 	JobDao dao = new JobDao();
-	dao.updateStatus(job, Job.SUCCESSFUL, "Ready to transfer to clearinghouse.");
+	dao.updateStatus(job, Job.WAITING_FOR_TRANSFER_CONTENT);
 
 	return true;
     }
