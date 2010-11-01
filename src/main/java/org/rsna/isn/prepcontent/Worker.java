@@ -4,7 +4,9 @@
  */
 package org.rsna.isn.prepcontent;
 
+import java.io.File;
 import java.util.Set;
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.log4j.Logger;
 import org.rsna.isn.dao.DeviceDao;
@@ -13,6 +15,7 @@ import org.rsna.isn.prepcontent.dcm.DcmUtil;
 import org.rsna.isn.domain.Device;
 import org.rsna.isn.domain.Exam;
 import org.rsna.isn.domain.Job;
+import org.rsna.isn.util.Environment;
 
 /**
  *
@@ -21,6 +24,8 @@ import org.rsna.isn.domain.Job;
 public class Worker extends Thread
 {
 	private static final Logger logger = Logger.getLogger(Worker.class);
+
+	private static final File dcmDir = Environment.getDcmDir();
 
 	private final Job job;
 
@@ -59,6 +64,9 @@ public class Worker extends Thread
 				}
 				else
 				{
+					File examDir = new File(new File(dcmDir, mrn), accNum);
+					FileUtils.deleteDirectory(examDir);
+
 					DeviceDao deviceDao = new DeviceDao();
 
 					Set<Device> devices = deviceDao.getDevices();

@@ -157,6 +157,7 @@ public class Monitor extends Thread
 						break;
 
 					dao.updateStatus(job, Job.STARTED_DICOM_C_MOVE);
+					
 					Worker worker = new Worker(group, job);
 					worker.start();
 				}
