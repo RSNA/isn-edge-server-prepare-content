@@ -64,15 +64,26 @@ public class Worker extends Thread
 					Set<Device> devices = deviceDao.getDevices();
 					for (Device device : devices)
 					{
-						if (DcmUtil.processJob(device, job))
+						try
 						{
-							logger.info("Completed processing of " + job);
-							
+							if (DcmUtil.processJob(device, job))
+							{
+								logger.info("Completed processing of " + job);
+
+								return;
+							}
+						}
+						catch (Exception ex)
+						{
+							logger.error("Uncaught exception while doing C-MOVE for " + job, ex);
+
+							dao.updateStatus(job, Job.DICOM_C_MOVE_FAILED, ex);
+
 							return;
 						}
 					}
 
-					dao.updateStatus(job, Job.DICOM_C_MOVE_FAILED,
+					dao.updateStatus(job, Job.UNABLE_TO_FIND_IMAGES,
 							"Unable to retrive study from any remote device.");
 				}
 
