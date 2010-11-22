@@ -31,13 +31,12 @@ import org.rsna.isn.domain.Exam;
 import org.rsna.isn.domain.Job;
 
 /**
+ * This class monitors the RSNA database for new jobs. If it finds a
+ * new job, it will spawn a worker thread to process the job.  Currently a max
+ * of five concurrent worker threads are allowed.
  *
  * @author Wyatt Tellis
  * @version 1.2.0
- *
- * Purpose: This class monitors the RSNA database for new jobs. If it finds a
- * new job, it will spawn a worker thread to process the job.  Currently a max
- * of five concurrent worker threads are allowed. 
  */
 class Monitor extends Thread
 {
@@ -69,7 +68,7 @@ class Monitor extends Thread
 				//
 				// Evaluate newly created jobs
 				//
-				Set<Job> newJobs = dao.getJobsByStatus(Job.WAITING_FOR_PREPARE_CONTENT);
+				Set<Job> newJobs = dao.getJobsByStatus(Job.RSNA_WAITING_FOR_PREPARE_CONTENT);
 				for (Job job : newJobs)
 				{
 					Exam exam = job.getExam();
@@ -77,7 +76,7 @@ class Monitor extends Thread
 
 					if (!"FINALIZED".equals(status))
 					{
-						dao.updateStatus(job, Job.WAITING_FOR_EXAM_FINALIZATION);
+						dao.updateStatus(job, Job.RSNA_WAITING_FOR_EXAM_FINALIZATION);
 
 						continue;
 					}
@@ -96,7 +95,7 @@ class Monitor extends Thread
 
 					if (age < delay)
 					{
-						dao.updateStatus(job, Job.WAITING_FOR_DELAY_EXPIRATION);
+						dao.updateStatus(job, Job.RSNA_WAITING_FOR_DELAY_EXPIRATION);
 
 						continue;
 					}
@@ -111,7 +110,7 @@ class Monitor extends Thread
 				//
 				// Evaluate jobs that are waiting for a final report
 				//
-				Set<Job> jobsWaitingForReport = dao.getJobsByStatus(Job.WAITING_FOR_EXAM_FINALIZATION);
+				Set<Job> jobsWaitingForReport = dao.getJobsByStatus(Job.RSNA_WAITING_FOR_EXAM_FINALIZATION);
 				for (Job job : jobsWaitingForReport)
 				{
 					Exam exam = job.getExam();
@@ -134,7 +133,7 @@ class Monitor extends Thread
 
 					if (age < delay)
 					{
-						dao.updateStatus(job, Job.WAITING_FOR_DELAY_EXPIRATION);
+						dao.updateStatus(job, Job.RSNA_WAITING_FOR_DELAY_EXPIRATION);
 
 						continue;
 					}
@@ -150,7 +149,7 @@ class Monitor extends Thread
 				// Evaluate jobs that are waiting for transmit delay to
 				// expire
 				//
-				Set<Job> jobsWaitingForTransmitDelay = dao.getJobsByStatus(Job.WAITING_FOR_DELAY_EXPIRATION);
+				Set<Job> jobsWaitingForTransmitDelay = dao.getJobsByStatus(Job.RSNA_WAITING_FOR_DELAY_EXPIRATION);
 				for (Job job : jobsWaitingForTransmitDelay)
 				{
 					Exam exam = job.getExam();
@@ -180,7 +179,7 @@ class Monitor extends Thread
 					if (group.activeCount() >= 5)
 						break;
 
-					dao.updateStatus(job, Job.STARTED_DICOM_C_MOVE);
+					dao.updateStatus(job, Job.RSNA_STARTED_DICOM_C_MOVE);
 					
 					Worker worker = new Worker(group, job);
 					worker.start();

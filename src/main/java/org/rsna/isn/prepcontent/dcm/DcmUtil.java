@@ -47,12 +47,12 @@ import org.rsna.isn.domain.Exam;
 import org.rsna.isn.domain.Job;
 
 /**
+ * A collection of DICOM utility functions.  Mostly used by the worker
+ * thread.
  *
  * @author Wyatt Tellis
  * @version 1.2.0
  *
- * Purpose: A collection of DICOM utility functions.  Mostly used by the worker
- * thread. 
  */
 public class DcmUtil
 {
@@ -131,14 +131,14 @@ public class DcmUtil
 			if (error != null)
 			{
 				JobDao dao = new JobDao();
-				dao.updateStatus(job, Job.DICOM_C_MOVE_FAILED, error);
+				dao.updateStatus(job, Job.RSNA_DICOM_C_MOVE_FAILED, error);
 
 				return true;
 			}
 		}
 
 		JobDao dao = new JobDao();
-		dao.updateStatus(job, Job.WAITING_FOR_TRANSFER_CONTENT);
+		dao.updateStatus(job, Job.RSNA_WAITING_FOR_TRANSFER_CONTENT);
 
 		return true;
 	}

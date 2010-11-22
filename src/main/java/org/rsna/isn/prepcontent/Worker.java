@@ -37,11 +37,10 @@ import org.rsna.isn.domain.Job;
 import org.rsna.isn.util.Environment;
 
 /**
+ * Worker thread that processes jobs.
  *
  * @author Wyatt Tellis
  * @version 1.2.0
- *
- * Purpose: Worker thread that processes jobs. 
  */
 class Worker extends Thread
 {
@@ -74,13 +73,13 @@ class Worker extends Thread
 
 				if (StringUtils.isEmpty(mrn))
 				{
-					dao.updateStatus(job, Job.FAILED_TO_PREPARE_CONTENT, "No mrn");
+					dao.updateStatus(job, Job.RSNA_FAILED_TO_PREPARE_CONTENT, "No mrn");
 
 					return;
 				}
 				else if (StringUtils.isEmpty(accNum))
 				{
-					dao.updateStatus(job, Job.FAILED_TO_PREPARE_CONTENT, "No acc #");
+					dao.updateStatus(job, Job.RSNA_FAILED_TO_PREPARE_CONTENT, "No acc #");
 
 					return;
 				}
@@ -107,13 +106,13 @@ class Worker extends Thread
 						{
 							logger.error("Uncaught exception while doing C-MOVE for " + job, ex);
 
-							dao.updateStatus(job, Job.DICOM_C_MOVE_FAILED, ex);
+							dao.updateStatus(job, Job.RSNA_DICOM_C_MOVE_FAILED, ex);
 
 							return;
 						}
 					}
 
-					dao.updateStatus(job, Job.UNABLE_TO_FIND_IMAGES,
+					dao.updateStatus(job, Job.RSNA_UNABLE_TO_FIND_IMAGES,
 							"Unable to retrive study from any remote device.");
 				}
 
@@ -123,7 +122,7 @@ class Worker extends Thread
 			{
 				logger.error("Uncaught exception while processing job " + job, ex);
 
-				dao.updateStatus(job, Job.FAILED_TO_PREPARE_CONTENT, ex);
+				dao.updateStatus(job, Job.RSNA_FAILED_TO_PREPARE_CONTENT, ex);
 			}
 		}
 		catch (Exception ex)
