@@ -41,6 +41,7 @@ import org.dcm4che2.net.NetworkApplicationEntity;
 import org.dcm4che2.net.NetworkConnection;
 import org.dcm4che2.net.NewThreadExecutor;
 import org.dcm4che2.net.TransferCapability;
+import org.rsna.isn.dao.ConfigurationDao;
 import org.rsna.isn.dao.JobDao;
 import org.rsna.isn.domain.Device;
 import org.rsna.isn.domain.Exam;
@@ -224,9 +225,11 @@ public class DcmUtil
 			keys.putString(Tag.QueryRetrieveLevel, VR.CS, "STUDY");
 			keys.putString(Tag.StudyInstanceUID, VR.SH, studyUid);
 
+                        ConfigurationDao confDao = new ConfigurationDao();
+                        String scpAeTitle = confDao.getConfiguration("scp-ae-title");
 
 			CMoveResponseHandler handler = new CMoveResponseHandler();
-			assoc.cmove(cuid, 0, keys, tsuid, "RSNA-ISN", handler);
+			assoc.cmove(cuid, 0, keys, tsuid, scpAeTitle, handler);
 
 			assoc.waitForDimseRSP();
 
@@ -270,8 +273,11 @@ public class DcmUtil
 
 		NetworkConnection localConn = new NetworkConnection();
 
+                ConfigurationDao confDao = new ConfigurationDao();
+                String scuAeTitle = confDao.getConfiguration("scu-ae-title");
+
 		NetworkApplicationEntity localAe = new NetworkApplicationEntity();
-		localAe.setAETitle("RSNA-ISN");
+		localAe.setAETitle(scuAeTitle);
 		localAe.setAssociationInitiator(true);
 		localAe.setNetworkConnection(localConn);
 		localAe.setTransferCapability(capabilities);
