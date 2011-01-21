@@ -26,6 +26,7 @@ package org.rsna.isn.prepcontent.dcm;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executor;
+import org.apache.commons.lang.time.DateUtils;
 import org.apache.log4j.Logger;
 import org.dcm4che2.data.BasicDicomObject;
 import org.dcm4che2.data.DicomObject;
@@ -280,6 +281,7 @@ public class DcmUtil
 		localAe.setAETitle(scuAeTitle);
 		localAe.setAssociationInitiator(true);
 		localAe.setNetworkConnection(localConn);
+                localAe.setRetrieveRspTimeout((int) DateUtils.MILLIS_PER_DAY);
 		localAe.setTransferCapability(capabilities);
 
 
