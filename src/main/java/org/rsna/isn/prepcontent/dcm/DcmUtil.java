@@ -62,8 +62,8 @@ public class DcmUtil
 
 	private static final String moveUids[] =
 	{
-		//UID.StudyRootQueryRetrieveInformationModelMOVE,
-		UID.PatientRootQueryRetrieveInformationModelMOVE,
+		UID.StudyRootQueryRetrieveInformationModelMOVE
+		//UID.PatientRootQueryRetrieveInformationModelMOVE,
 	//UID.PatientStudyOnlyQueryRetrieveInformationModelMOVERetired
 	};
 
