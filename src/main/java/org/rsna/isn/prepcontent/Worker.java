@@ -25,7 +25,6 @@ package org.rsna.isn.prepcontent;
 
 import java.io.File;
 import java.util.Set;
-import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.log4j.Logger;
 import org.rsna.isn.dao.DeviceDao;
@@ -85,8 +84,8 @@ class Worker extends Thread
 				}
 				else
 				{
-					File examDir = new File(new File(dcmDir, mrn), accNum);
-					FileUtils.deleteDirectory(examDir);
+					//File examDir = new File(new File(dcmDir, mrn), accNum);
+					//FileUtils.deleteDirectory(examDir);
 
 					DeviceDao deviceDao = new DeviceDao();
 

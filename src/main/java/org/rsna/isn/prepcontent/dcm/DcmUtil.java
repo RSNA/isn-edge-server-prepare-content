@@ -42,6 +42,7 @@ import org.dcm4che2.net.NetworkApplicationEntity;
 import org.dcm4che2.net.NetworkConnection;
 import org.dcm4che2.net.NewThreadExecutor;
 import org.dcm4che2.net.TransferCapability;
+import org.dcm4che2.util.StringUtils;
 import org.rsna.isn.dao.ConfigurationDao;
 import org.rsna.isn.dao.JobDao;
 import org.rsna.isn.domain.Device;
@@ -63,7 +64,7 @@ public class DcmUtil
 	private static final String moveUids[] =
 	{
 		UID.StudyRootQueryRetrieveInformationModelMOVE
-		//UID.PatientRootQueryRetrieveInformationModelMOVE,
+	//UID.PatientRootQueryRetrieveInformationModelMOVE,
 	//UID.PatientStudyOnlyQueryRetrieveInformationModelMOVERetired
 	};
 
@@ -134,6 +135,8 @@ public class DcmUtil
 			{
 				JobDao dao = new JobDao();
 				dao.updateStatus(job, Job.RSNA_DICOM_C_MOVE_FAILED, error);
+
+				logger.warn(job + ": C-MOVE failed for study UID " + studyUid);
 
 				return true;
 			}
@@ -226,8 +229,8 @@ public class DcmUtil
 			keys.putString(Tag.QueryRetrieveLevel, VR.CS, "STUDY");
 			keys.putString(Tag.StudyInstanceUID, VR.SH, studyUid);
 
-                        ConfigurationDao confDao = new ConfigurationDao();
-                        String scpAeTitle = confDao.getConfiguration("scp-ae-title");
+			ConfigurationDao confDao = new ConfigurationDao();
+			String scpAeTitle = confDao.getConfiguration("scp-ae-title");
 
 			CMoveResponseHandler handler = new CMoveResponseHandler();
 			assoc.cmove(cuid, 0, keys, tsuid, scpAeTitle, handler);
@@ -237,26 +240,26 @@ public class DcmUtil
 			assoc.release(true);
 
 
-			if (handler.completed + handler.warning + handler.failed == 0)
+			if (handler.status == CommandUtils.SUCCESS)
 			{
-				return "No objects for study " + studyUid
-						+ " on " + device.getAeTitle();
+				return null;
 			}
 			else
 			{
-				int status;
-				String msg;
-				if (handler.warning > 0 || handler.failed > 0)
-				{
-					return "Unable to retrieve study. There were "
-							+ handler.warning + " warnings and "
-							+ handler.failed + " failures";
-				}
-				else
-				{
-					return null;
-				}
+				StringBuilder msg = new StringBuilder();
+				msg.append("C-MOVE failed for study UID: ").append(studyUid).
+						append(". ");
+
+				msg.append("Error code is: 0x").
+						append(StringUtils.shortToHex(handler.status)).
+						append(". ");
+
+				msg.append("Error message is: \"").
+						append(handler.error).append("\". ");
+
+				return msg.toString();
 			}
+
 		}
 	}
 
@@ -274,14 +277,14 @@ public class DcmUtil
 
 		NetworkConnection localConn = new NetworkConnection();
 
-                ConfigurationDao confDao = new ConfigurationDao();
-                String scuAeTitle = confDao.getConfiguration("scu-ae-title");
+		ConfigurationDao confDao = new ConfigurationDao();
+		String scuAeTitle = confDao.getConfiguration("scu-ae-title");
 
 		NetworkApplicationEntity localAe = new NetworkApplicationEntity();
 		localAe.setAETitle(scuAeTitle);
 		localAe.setAssociationInitiator(true);
 		localAe.setNetworkConnection(localConn);
-                localAe.setRetrieveRspTimeout((int) DateUtils.MILLIS_PER_DAY);
+		localAe.setRetrieveRspTimeout((int) DateUtils.MILLIS_PER_DAY);
 		localAe.setTransferCapability(capabilities);
 
 
@@ -298,20 +301,18 @@ public class DcmUtil
 
 	private static class CMoveResponseHandler extends DimseRSPHandler
 	{
-		private int completed = 0;
+		private int status = -1;
 
-		private int warning = 0;
-
-		private int failed = 0;
+		private String error = "";
 
 		@Override
 		public void onDimseRSP(Association as, DicomObject cmd, DicomObject data)
 		{
 			if (!CommandUtils.isPending(cmd))
 			{
-				completed += cmd.getInt(Tag.NumberOfCompletedSuboperations);
-				warning += cmd.getInt(Tag.NumberOfWarningSuboperations);
-				failed += cmd.getInt(Tag.NumberOfFailedSuboperations);
+				status = cmd.getInt(Tag.Status);
+
+				error = cmd.getString(Tag.ErrorComment, "");
 			}
 		}
 
