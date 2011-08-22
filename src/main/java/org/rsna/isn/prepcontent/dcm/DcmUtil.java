@@ -140,6 +140,8 @@ public class DcmUtil
 
 				return true;
 			}
+			
+			logger.info("Completed C-MOVE of study UID " + studyUid + " for " + job);
 		}
 
 		JobDao dao = new JobDao();
