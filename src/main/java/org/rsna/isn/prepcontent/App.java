@@ -24,6 +24,7 @@
 package org.rsna.isn.prepcontent;
 
 import org.apache.log4j.Logger;
+import org.rsna.isn.prepcontent.dcm.Scp;
 import org.rsna.isn.util.Environment;
 
 /**
@@ -46,12 +47,18 @@ public class App
 	{
 		Environment.init("prep");
 
-		Monitor monitor = new Monitor();
-		Runtime.getRuntime().addShutdownHook(new ShutdownHook(monitor));
-
-
+		
+		logger.info("Attempting to start SCP");
+		Scp scp = new Scp();
+		scp.start();
+		
 		logger.info("Attempting to start job monitor");
+		Monitor monitor = new Monitor();
 		monitor.start();
+		
+		
+		
+		Runtime.getRuntime().addShutdownHook(new ShutdownHook(monitor));
 	}
 
 	private static class ShutdownHook extends Thread
