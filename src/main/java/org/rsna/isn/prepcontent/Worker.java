@@ -23,7 +23,6 @@
  */
 package org.rsna.isn.prepcontent;
 
-import java.io.File;
 import java.util.Set;
 import org.apache.commons.lang.StringUtils;
 import org.apache.log4j.Logger;
@@ -33,7 +32,6 @@ import org.rsna.isn.prepcontent.dcm.DcmUtil;
 import org.rsna.isn.domain.Device;
 import org.rsna.isn.domain.Exam;
 import org.rsna.isn.domain.Job;
-import org.rsna.isn.util.Environment;
 
 /**
  * Worker thread that processes jobs.
@@ -44,8 +42,6 @@ import org.rsna.isn.util.Environment;
 class Worker extends Thread
 {
 	private static final Logger logger = Logger.getLogger(Worker.class);
-
-	private static final File dcmDir = Environment.getDcmDir();
 
 	private final Job job;
 
@@ -59,7 +55,7 @@ class Worker extends Thread
 	@Override
 	public void run()
 	{
-		logger.info("Started worker thread");
+		logger.info("Started processing " + job);
 
 		try
 		{
@@ -96,7 +92,7 @@ class Worker extends Thread
 						{
 							if (DcmUtil.doCMove(device, job))
 							{
-								logger.info("Completed processing of " + job);
+								logger.info("Completed processing " + job);
 
 								return;
 							}
@@ -112,7 +108,7 @@ class Worker extends Thread
 					}
 
 					dao.updateStatus(job, Job.RSNA_UNABLE_TO_FIND_IMAGES,
-							"Unable to retrive study from any remote device.");
+							"Could not find any images for this exam.");
 				}
 
 

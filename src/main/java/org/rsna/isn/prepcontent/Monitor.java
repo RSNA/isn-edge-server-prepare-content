@@ -24,6 +24,7 @@
 package org.rsna.isn.prepcontent;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import org.apache.log4j.Logger;
 import org.rsna.isn.dao.JobDao;
@@ -57,6 +58,26 @@ class Monitor extends Thread
 		logger.info("Started monitor thread");
 
 		JobDao dao = new JobDao();
+
+		try
+		{
+			Set<Job> interruptedJobs = new HashSet();
+			interruptedJobs.addAll(dao.getJobsByStatus(Job.RSNA_STARTED_DICOM_C_MOVE));
+
+			for (Job job : interruptedJobs)
+			{
+				dao.updateStatus(job, Job.RSNA_WAITING_FOR_PREPARE_CONTENT, "Retrying job");
+
+				logger.info("Retrying " + job);
+			}
+		}
+		catch (Exception ex)
+		{
+			logger.fatal("Uncaught exception while restarting interrupted jobs.", ex);
+
+			return;
+		}
+
 		keepRunning = true;
 		while (keepRunning)
 		{
@@ -71,13 +92,19 @@ class Monitor extends Thread
 				Set<Job> newJobs = dao.getJobsByStatus(Job.RSNA_WAITING_FOR_PREPARE_CONTENT);
 				for (Job job : newJobs)
 				{
-					Exam exam = job.getExam();
-					String status = exam.getStatus();
-
-					if (!"FINALIZED".equals(status))
+					Exam exam = job.getExam();					
+					if (!isReportReady(exam))
 					{
-						dao.updateStatus(job, Job.RSNA_WAITING_FOR_EXAM_FINALIZATION);
-
+						if("CANCELED".equals(exam.getStatus()))
+						{
+							dao.updateStatus(job, Job.RSNA_FAILED_TO_PREPARE_CONTENT, 
+									"Exam has been canceled");
+						}
+						else
+						{
+							dao.updateStatus(job, Job.RSNA_WAITING_FOR_EXAM_FINALIZATION);
+						}
+						
 						continue;
 					}
 
@@ -114,10 +141,18 @@ class Monitor extends Thread
 				for (Job job : jobsWaitingForReport)
 				{
 					Exam exam = job.getExam();
-					String status = exam.getStatus();
 
-					if (!"FINALIZED".equals(status))
+					if (!isReportReady(exam))
+					{
+						if("CANCELED".equals(exam.getStatus()))
+						{
+							dao.updateStatus(job, Job.RSNA_FAILED_TO_PREPARE_CONTENT, 
+									"Exam has been canceled");
+						}
+						
+						
 						continue;
+					}
 
 
 					long age = System.currentTimeMillis()
@@ -179,8 +214,24 @@ class Monitor extends Thread
 					if (group.activeCount() >= 5)
 						break;
 
+
+					Exam exam = job.getExam();
+					String mrn = exam.getMrn();
+					String accNum = exam.getAccNum();
+
+					//
+					// Make sure we're not already processing this MRN/acc #
+					// combo.  Some PACS don't like multiple C-MOVE requests
+					// for the same exam. 
+					//
+					List<Job> otherJobs = dao.findJobs(mrn, accNum, Job.RSNA_STARTED_DICOM_C_MOVE);
+					if (!otherJobs.isEmpty())
+					{
+						continue;
+					}
+
 					dao.updateStatus(job, Job.RSNA_STARTED_DICOM_C_MOVE);
-					
+
 					Worker worker = new Worker(group, job);
 					worker.start();
 				}
@@ -211,6 +262,21 @@ class Monitor extends Thread
 		keepRunning = false;
 
 		join(10 * 1000);
+	}
+
+	private boolean isReportReady(Exam exam)
+	{
+		String status = exam.getStatus();
+
+
+		if ("FINALIZED".equals(status))
+			return true;
+		else if ("ADDENDED".equals(status))
+			return true;
+		else if ("NON-REPORTABLE".equals(status))
+			return true;
+		else
+			return false;
 	}
 
 }

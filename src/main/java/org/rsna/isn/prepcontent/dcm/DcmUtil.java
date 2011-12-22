@@ -23,9 +23,11 @@
  */
 package org.rsna.isn.prepcontent.dcm;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executor;
+import java.util.logging.Level;
 import org.apache.commons.lang.time.DateUtils;
 import org.apache.log4j.Logger;
 import org.dcm4che2.data.BasicDicomObject;
@@ -129,7 +131,7 @@ public class DcmUtil
 
 		for (String studyUid : studyUids)
 		{
-			String error = moveStudy(device, studyUid);
+			String error = moveStudy(device, studyUid, job);
 
 			if (error != null)
 			{
@@ -140,7 +142,7 @@ public class DcmUtil
 
 				return true;
 			}
-			
+
 			logger.info("Completed C-MOVE of study UID " + studyUid + " for " + job);
 		}
 
@@ -203,7 +205,7 @@ public class DcmUtil
 		return uids;
 	}
 
-	private static String moveStudy(Device device, String studyUid) throws Exception
+	private static String moveStudy(Device device, String studyUid, Job job) throws Exception
 	{
 		Association assoc = connect(device, "transfer-" + studyUid);
 
@@ -217,7 +219,6 @@ public class DcmUtil
 
 		if (tc == null)
 		{
-
 			assoc.release(true);
 
 			return "C-MOVE not supported by " + device.getAeTitle();
@@ -234,7 +235,7 @@ public class DcmUtil
 			ConfigurationDao confDao = new ConfigurationDao();
 			String scpAeTitle = confDao.getConfiguration("scp-ae-title");
 
-			CMoveResponseHandler handler = new CMoveResponseHandler();
+			CMoveResponseHandler handler = new CMoveResponseHandler(job);
 			assoc.cmove(cuid, 0, keys, tsuid, scpAeTitle, handler);
 
 			assoc.waitForDimseRSP();
@@ -307,16 +308,54 @@ public class DcmUtil
 
 		private String error = "";
 
+		private final Job job;
+
+		private final JobDao jobDao = new JobDao();
+
+		public CMoveResponseHandler(Job job)
+		{
+			this.job = job;
+		}
+
+		private void updateCount(Association as, DicomObject cmd)
+		{
+			int completed = cmd.getInt(Tag.NumberOfCompletedSuboperations);
+			int remaining = cmd.getInt(Tag.NumberOfRemainingSuboperations);
+			int warning = cmd.getInt(Tag.NumberOfWarningSuboperations);
+			int done = completed + warning;
+
+
+			int total = done + remaining;
+			if (total > 0)
+			{
+				try
+				{
+					String comments = done + " of " + total + " completed.";
+
+					jobDao.updateComments(job, Job.RSNA_STARTED_DICOM_C_MOVE, comments);
+				}
+				catch (Exception ex)
+				{
+					logger.error("Unable to update comments "
+							+ "for job #" + job.getJobId(), ex);
+
+					as.abort();
+				}
+			}
+		}
+
 		@Override
 		public void onDimseRSP(Association as, DicomObject cmd, DicomObject data)
-		{
+		{			
 			if (!CommandUtils.isPending(cmd))
 			{
 				status = cmd.getInt(Tag.Status);
 
 				error = cmd.getString(Tag.ErrorComment, "");
 			}
+			
+			
+			updateCount(as, cmd);
 		}
-
 	}
 }

@@ -7,7 +7,9 @@ package org.rsna.isn.prepcontent.dcm;
 import java.io.File;
 import java.io.IOException;
 import java.sql.SQLException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import org.apache.log4j.Logger;
 import org.dcm4che2.data.BasicDicomObject;
 import org.dcm4che2.data.DicomObject;
@@ -31,21 +33,27 @@ import org.rsna.isn.util.Environment;
  *
  * @author wtellis
  */
-public class CStoreHandler extends DicomService implements CStoreSCP
+public class CStoreHandler extends DicomService implements CStoreSCP, AssociationListener
 {
 	private static final Logger logger = Logger.getLogger(CStoreHandler.class);
-
-	private static final ThreadLocal<List<Job>> associatedJobs = new ThreadLocal();
-
+	
+	private static final ThreadLocal<Map<String, List<Job>>> jobsMap = new ThreadLocal();
+	
 	public final File dcmDir;
-
+	
 	public CStoreHandler(String[] sopClasses)
 	{
 		super(sopClasses);
-
+		
 		this.dcmDir = Environment.getDcmDir();
 	}
-
+	
+	@Override
+	public void associationAccepted(AssociationAcceptEvent event)
+	{
+		jobsMap.set(new HashMap());
+	}
+	
 	@Override
 	public void cstore(Association as, int pcid, DicomObject cmd,
 			PDVInputStream dataStream, String tsuid) throws DicomServiceException, IOException
@@ -53,28 +61,30 @@ public class CStoreHandler extends DicomService implements CStoreSCP
 		try
 		{
 			DicomObject dcmObj = dataStream.readDataset();
-
+			
 			String accNum = dcmObj.getString(Tag.AccessionNumber);
 			String mrn = dcmObj.getString(Tag.PatientID);
-
-			List<Job> jobs = associatedJobs.get();
+			String key = mrn + "/" + accNum;
+			
+			Map<String, List<Job>> map = jobsMap.get();
+			List<Job> jobs = map.get(key);
 			if (jobs == null)
 			{
 				JobDao dao = new JobDao();
 				jobs = dao.findJobs(mrn, accNum, Job.RSNA_STARTED_DICOM_C_MOVE);
-
+				
 				if (jobs.isEmpty())
 				{
-					logger.warn("No pending jobs assoicated with: " + mrn + "/" + accNum);
-
+					logger.warn("No pending jobs associated with: " + mrn + "/" + accNum);
+					
 					throw new DicomServiceException(cmd, Status.ProcessingFailure,
 							"No pending jobs associated with this study.");
 				}
-
-				associatedJobs.set(jobs);
+				
+				map.put(key, jobs);
 			}
-
-
+			
+			
 			for (Job job : jobs)
 			{
 				int jobId = job.getJobId();
@@ -82,19 +92,19 @@ public class CStoreHandler extends DicomService implements CStoreSCP
 				File patDir = new File(jobDir, mrn);
 				File examDir = new File(patDir, accNum);
 				examDir.mkdirs();
-
-
+				
+				
 				String instanceUid = dcmObj.getString(Tag.SOPInstanceUID);
 				String classUid = dcmObj.getString(Tag.SOPClassUID);
-
-
-
-
-
+				
+				
+				
+				
+				
 				BasicDicomObject fmi = new BasicDicomObject();
 				fmi.initFileMetaInformation(classUid, instanceUid, tsuid);
-
-
+				
+				
 				File dcmFile = new File(examDir, instanceUid + ".dcm");
 				DicomOutputStream dout = new DicomOutputStream(dcmFile);
 				dout.writeFileMetaInformation(fmi);
@@ -102,16 +112,22 @@ public class CStoreHandler extends DicomService implements CStoreSCP
 				
 				dout.close();
 			}
-
-
+			
+			
 			as.writeDimseRSP(pcid, CommandUtils.mkRSP(cmd, CommandUtils.SUCCESS));
 		}
 		catch (SQLException ex)
 		{
 			logger.warn("Unable to store object due to database error", ex);
-
+			
 			throw new DicomServiceException(cmd, Status.ProcessingFailure, ex.getMessage());
 		}
 	}
-
+	
+	@Override
+	public void associationClosed(AssociationCloseEvent event)
+	{
+		jobsMap.remove();
+	}
+	
 }
