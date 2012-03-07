@@ -37,7 +37,7 @@ import org.rsna.isn.domain.Job;
  * of five concurrent worker threads are allowed.
  *
  * @author Wyatt Tellis
- * @version 1.2.0
+ * @version 2.1.0
  */
 class Monitor extends Thread
 {
@@ -270,8 +270,6 @@ class Monitor extends Thread
 
 
 		if ("FINALIZED".equals(status))
-			return true;
-		else if ("ADDENDED".equals(status))
 			return true;
 		else if ("NON-REPORTABLE".equals(status))
 			return true;

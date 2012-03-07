@@ -23,11 +23,9 @@
  */
 package org.rsna.isn.prepcontent.dcm;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executor;
-import java.util.logging.Level;
 import org.apache.commons.lang.time.DateUtils;
 import org.apache.log4j.Logger;
 import org.dcm4che2.data.BasicDicomObject;
@@ -56,7 +54,7 @@ import org.rsna.isn.domain.Job;
  * thread.
  *
  * @author Wyatt Tellis
- * @version 1.2.0
+ * @version 2.1.0
  *
  */
 public class DcmUtil
