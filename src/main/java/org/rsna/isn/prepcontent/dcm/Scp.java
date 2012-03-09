@@ -141,7 +141,7 @@ public class Scp
 
 		port = NumberUtils.toInt(dao.getConfiguration("scp-port"), 4104);
 		int releaseTimeout = NumberUtils.toInt(dao.getConfiguration("scp-release-timeout"), 5000);
-		int requestTimeout = NumberUtils.toInt(dao.getConfiguration("scp-read-timeout"), 5000);
+		int requestTimeout = NumberUtils.toInt(dao.getConfiguration("scp-request-timeout"), 5000);
 
 		NetworkConnection nc = new NetworkConnection();
 		nc.setPort(port);
