@@ -138,9 +138,13 @@ public class CStoreHandler extends DicomService implements CStoreSCP, Associatio
 			
 			as.writeDimseRSP(pcid, CommandUtils.mkRSP(cmd, CommandUtils.SUCCESS));
 		}
-		catch (SQLException ex)
+		catch(IOException ex)
 		{
-			logger.warn("Unable to store object due to database error", ex);
+			throw ex;
+		}
+		catch(Throwable ex)
+		{
+			logger.warn("Unable to store object due to uncaught exception.", ex);
 			
 			throw new DicomServiceException(cmd, Status.ProcessingFailure, ex.getMessage());
 		}
