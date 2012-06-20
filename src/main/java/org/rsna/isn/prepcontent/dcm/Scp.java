@@ -23,19 +23,23 @@
  */
 package org.rsna.isn.prepcontent.dcm;
 
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
-import java.util.Set;
+import java.util.TreeMap;
+import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.math.NumberUtils;
 import org.apache.log4j.Logger;
 import org.dcm4che2.data.UID;
+import org.dcm4che2.data.UIDDictionary;
 import org.dcm4che2.net.Device;
 import org.dcm4che2.net.NetworkApplicationEntity;
 import org.dcm4che2.net.NetworkConnection;
@@ -58,74 +62,12 @@ public class Scp
 {
 	private static final Logger logger = Logger.getLogger(Scp.class);
 
-	private static final String[] NATIVE_LE_TS =
+	private static final UIDDictionary dict = UIDDictionary.getDictionary();
+
+	private static final String[] CECHO_TS =
 	{
 		UID.ExplicitVRLittleEndian,
 		UID.ImplicitVRLittleEndian
-	};
-
-	private static final String[] CUIDS =
-	{
-		UID.BasicStudyContentNotificationSOPClassRetired,
-		UID.StoredPrintStorageSOPClassRetired,
-		UID.HardcopyGrayscaleImageStorageSOPClassRetired,
-		UID.HardcopyColorImageStorageSOPClassRetired,
-		UID.ComputedRadiographyImageStorage,
-		UID.DigitalXRayImageStorageForPresentation,
-		UID.DigitalXRayImageStorageForProcessing,
-		UID.DigitalMammographyXRayImageStorageForPresentation,
-		UID.DigitalMammographyXRayImageStorageForProcessing,
-		UID.DigitalIntraoralXRayImageStorageForPresentation,
-		UID.DigitalIntraoralXRayImageStorageForProcessing,
-		UID.StandaloneModalityLUTStorageRetired,
-		UID.EncapsulatedPDFStorage, UID.StandaloneVOILUTStorageRetired,
-		UID.GrayscaleSoftcopyPresentationStateStorageSOPClass,
-		UID.ColorSoftcopyPresentationStateStorageSOPClass,
-		UID.PseudoColorSoftcopyPresentationStateStorageSOPClass,
-		UID.BlendingSoftcopyPresentationStateStorageSOPClass,
-		UID.XRayAngiographicImageStorage, UID.EnhancedXAImageStorage,
-		UID.XRayRadiofluoroscopicImageStorage, UID.EnhancedXRFImageStorage,
-		UID.XRayAngiographicBiPlaneImageStorageRetired,
-		UID.PositronEmissionTomographyImageStorage,
-		UID.StandalonePETCurveStorageRetired, UID.CTImageStorage,
-		UID.EnhancedCTImageStorage, UID.NuclearMedicineImageStorage,
-		UID.UltrasoundMultiframeImageStorageRetired,
-		UID.UltrasoundMultiframeImageStorage, UID.MRImageStorage,
-		UID.EnhancedMRImageStorage, UID.MRSpectroscopyStorage,
-		UID.RTImageStorage, UID.RTDoseStorage, UID.RTStructureSetStorage,
-		UID.RTBeamsTreatmentRecordStorage, UID.RTPlanStorage,
-		UID.RTBrachyTreatmentRecordStorage,
-		UID.RTTreatmentSummaryRecordStorage,
-		UID.NuclearMedicineImageStorageRetired,
-		UID.UltrasoundImageStorageRetired, UID.UltrasoundImageStorage,
-		UID.RawDataStorage, UID.SpatialRegistrationStorage,
-		UID.SpatialFiducialsStorage, UID.RealWorldValueMappingStorage,
-		UID.SecondaryCaptureImageStorage,
-		UID.MultiframeSingleBitSecondaryCaptureImageStorage,
-		UID.MultiframeGrayscaleByteSecondaryCaptureImageStorage,
-		UID.MultiframeGrayscaleWordSecondaryCaptureImageStorage,
-		UID.MultiframeTrueColorSecondaryCaptureImageStorage,
-		UID.VLImageStorageTrialRetired, UID.VLEndoscopicImageStorage,
-		UID.VideoEndoscopicImageStorage, UID.VLMicroscopicImageStorage,
-		UID.VideoMicroscopicImageStorage,
-		UID.VLSlideCoordinatesMicroscopicImageStorage,
-		UID.VLPhotographicImageStorage, UID.VideoPhotographicImageStorage,
-		UID.OphthalmicPhotography8BitImageStorage,
-		UID.OphthalmicPhotography16BitImageStorage,
-		UID.StereometricRelationshipStorage,
-		UID.VLMultiframeImageStorageTrialRetired,
-		UID.StandaloneOverlayStorageRetired, UID.BasicTextSRStorage,
-		UID.EnhancedSRStorage, UID.ComprehensiveSRStorage,
-		UID.ProcedureLogStorage, UID.MammographyCADSRStorage,
-		UID.KeyObjectSelectionDocumentStorage,
-		UID.ChestCADSRStorage, UID.XRayRadiationDoseSRStorage,
-		UID.EncapsulatedPDFStorage, UID.EncapsulatedCDAStorage,
-		UID.StandaloneCurveStorageRetired,
-		UID._12leadECGWaveformStorage, UID.GeneralECGWaveformStorage,
-		UID.AmbulatoryECGWaveformStorage, UID.HemodynamicWaveformStorage,
-		UID.CardiacElectrophysiologyWaveformStorage,
-		UID.BasicVoiceAudioWaveformStorage, UID.HangingProtocolStorage,
-		UID.SiemensCSANonImageStorage
 	};
 
 	private final String aeTitle;
@@ -176,7 +118,7 @@ public class Scp
 		ae.register(new VerificationService());
 
 		TransferCapability verification = new TransferCapability(UID.VerificationSOPClass,
-				NATIVE_LE_TS, TransferCapability.SCP);
+				CECHO_TS, TransferCapability.SCP);
 		capabilities.add(verification);
 
 
@@ -188,7 +130,7 @@ public class Scp
 
 		Properties props = new Properties();
 		File confDir = Environment.getConfDir();
-		File propFile = new File(confDir, "dicom.properties");
+		File propFile = new File(confDir, "scp.properties");
 		if (propFile.exists())
 		{
 			FileInputStream in = new FileInputStream(propFile);
@@ -196,37 +138,77 @@ public class Scp
 
 			in.close();
 		}
-
-
-		Set<String> sopClassUids = new HashSet();
-		sopClassUids.addAll(Arrays.asList(CUIDS));
-		
-		for (String key : props.stringPropertyNames())
+		else
 		{
-			if (key.startsWith("scp.sop_class."))
-			{
-				String sopClsUid = props.getProperty(key).trim();
-				if (!UIDUtils.isValidUID(sopClsUid))
-				{
-					throw new IllegalArgumentException("Invalid SOP class UID in dicom.properties file: \"" + sopClsUid
-							+ "\".  Property key is: " + key);
-				}
-				
-				if(sopClassUids.add(sopClsUid))
-					logger.info("Added support for SOP class: " + sopClsUid);				
-			}
+			InputStream in = Scp.class.getResourceAsStream("scp.properties");
+
+
+			byte buffer[] = IOUtils.toByteArray(in);
+			in.close();
+
+
+			props.load(new ByteArrayInputStream(buffer));
+
+			FileOutputStream fos = new FileOutputStream(propFile);
+			fos.write(buffer);
+			fos.close();
 		}
 
 
-		CStoreHandler cstore = new CStoreHandler(CUIDS);
+
+
+
+
+		// Setup the presentation contexts
+		Map<String, String[]> pcs = new TreeMap();
+		for (String sopClass : props.stringPropertyNames())
+		{
+			if (!UIDUtils.isValidUID(sopClass))
+			{
+				throw new IllegalArgumentException("Invalid SOP class UID "
+						+ "in scp.properties file: \"" + sopClass);
+			}
+
+			String value = props.getProperty(sopClass);
+			String txUids[] = StringUtils.split(value, ',');
+			for (int i = 0; i < txUids.length; i++)
+			{
+				String txUid = txUids[i].trim();
+
+				if (!UIDUtils.isValidUID(txUid))
+				{
+					throw new IllegalArgumentException("Invalid transfer syntax UID "
+							+ "in scp.properties file: \"" + txUid);
+				}
+
+				txUids[i] = txUid;
+			}
+
+
+			pcs.put(sopClass, txUids);
+		}
+
+
+
+
+		String sopClassUids[] = pcs.keySet().toArray(new String[0]);
+
+
+		CStoreHandler cstore = new CStoreHandler(sopClassUids);
 		ae.register(cstore);
 		ae.addAssociationListener(cstore);
 
+
 		for (String sopClassUid : sopClassUids)
 		{
+			String txUids[] = pcs.get(sopClassUid);
+
 			TransferCapability capability = new TransferCapability(sopClassUid,
-					NATIVE_LE_TS, TransferCapability.SCP);
+					txUids, TransferCapability.SCP);
 			capabilities.add(capability);
+
+			logger.info("Enabling C-STORE support for: "
+					+ dict.nameOf(sopClassUid) + " (" + sopClassUid + ")");
 		}
 
 		ae.setTransferCapability(capabilities.toArray(new TransferCapability[0]));

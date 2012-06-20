@@ -64,12 +64,25 @@
 				</configuration>
 			</plugin>
 		</plugins>
+		
+		
+		<resources>
+			<resource>
+				<directory>src/main/java</directory>
+				<excludes>
+					<exclude>**/*.java</exclude>
+				</excludes>
+			</resource>
+			<resource>
+				<directory>src/main/resources</directory>
+			</resource>
+		</resources>
 	</build>
 	<dependencies>
 		<dependency>
 			<groupId>org.rsna.isn</groupId>
 			<artifactId>core</artifactId>
-			<version>2.1.0</version>
+			<version>${project.version}</version>
 		</dependency>
 
 		<dependency>
@@ -81,7 +94,7 @@
 		<dependency>
 			<groupId>dcm4che</groupId>
 			<artifactId>dcm4che-net</artifactId>
-			<version>2.0.25</version>
+			<version>2.0.26</version>
 		</dependency>
 
 		<dependency>
