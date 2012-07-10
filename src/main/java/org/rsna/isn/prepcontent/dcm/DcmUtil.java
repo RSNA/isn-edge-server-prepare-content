@@ -23,6 +23,7 @@
  */
 package org.rsna.isn.prepcontent.dcm;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executor;
@@ -48,6 +49,7 @@ import org.rsna.isn.dao.JobDao;
 import org.rsna.isn.domain.Device;
 import org.rsna.isn.domain.Exam;
 import org.rsna.isn.domain.Job;
+import org.rsna.isn.util.Environment;
 
 /**
  * A collection of DICOM utility functions.  Mostly used by the worker
@@ -81,9 +83,15 @@ public class DcmUtil
 
 	private static TransferCapability capabilities[] =
 			new TransferCapability[moveUids.length + findUids.length];
+	
+	
+	public static final File dcmDir;
 
 	static
 	{
+		dcmDir = Environment.getDcmDir();
+		
+		
 		for (int i = 0; i < moveUids.length; i++)
 		{
 			String cuid = moveUids[i];
@@ -145,7 +153,14 @@ public class DcmUtil
 		}
 
 		JobDao dao = new JobDao();
-		dao.updateStatus(job, Job.RSNA_WAITING_FOR_TRANSFER_CONTENT);
+		
+		 
+		File jobDir = new File(dcmDir, Integer.toString(job.getJobId()));
+		if(jobDir.isDirectory())
+			dao.updateStatus(job, Job.RSNA_WAITING_FOR_TRANSFER_CONTENT);
+		else
+			dao.updateStatus(job, Job.RSNA_DICOM_C_MOVE_FAILED, "No images received.");
+		
 
 		return true;
 	}

@@ -38,8 +38,8 @@ class DefaultScpConfigCreator
 
 	private static final String[] TS =
 	{
-		UID.ExplicitVRLittleEndian,
 		UID.ImplicitVRLittleEndian,
+		UID.ExplicitVRLittleEndian,
 		UID.ExplicitVRBigEndian,
 		UID.JPEGBaseline1,
 		UID.JPEGExtended24,

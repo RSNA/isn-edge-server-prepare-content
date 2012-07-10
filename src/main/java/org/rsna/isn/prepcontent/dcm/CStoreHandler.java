@@ -132,6 +132,8 @@ public class CStoreHandler extends DicomService implements CStoreSCP, Associatio
 				dout.writeDataset(dcmObj, tsuid);
 				
 				dout.close();
+				
+				logger.debug("Wrote file " + dcmFile + " for job #" + jobId);
 			}
 			
 			
