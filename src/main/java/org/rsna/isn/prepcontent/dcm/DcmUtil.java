@@ -24,6 +24,8 @@
 package org.rsna.isn.prepcontent.dcm;
 
 import java.io.File;
+import java.io.IOException;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executor;
@@ -36,6 +38,7 @@ import org.dcm4che2.data.UID;
 import org.dcm4che2.data.VR;
 import org.dcm4che2.net.Association;
 import org.dcm4che2.net.CommandUtils;
+import org.dcm4che2.net.ConfigurationException;
 import org.dcm4che2.net.DimseRSP;
 import org.dcm4che2.net.DimseRSPHandler;
 import org.dcm4che2.net.ExtRetrieveTransferCapability;
@@ -52,8 +55,7 @@ import org.rsna.isn.domain.Job;
 import org.rsna.isn.util.Environment;
 
 /**
- * A collection of DICOM utility functions.  Mostly used by the worker
- * thread.
+ * A collection of DICOM utility functions. Mostly used by the worker thread.
  *
  * @author Wyatt Tellis
  * @version 2.1.0
@@ -83,15 +85,14 @@ public class DcmUtil
 
 	private static TransferCapability capabilities[] =
 			new TransferCapability[moveUids.length + findUids.length];
-	
-	
+
 	public static final File dcmDir;
 
 	static
 	{
 		dcmDir = Environment.getDcmDir();
-		
-		
+
+
 		for (int i = 0; i < moveUids.length; i++)
 		{
 			String cuid = moveUids[i];
@@ -123,6 +124,7 @@ public class DcmUtil
 
 	/**
 	 * Attempts a DICOM C-MOVE against the specified remote device.
+	 *
 	 * @param device The remote device.
 	 * @param job The job to process
 	 * @return True if objects were successfully retrieved, false if not
@@ -153,14 +155,14 @@ public class DcmUtil
 		}
 
 		JobDao dao = new JobDao();
-		
-		 
+
+
 		File jobDir = new File(dcmDir, Integer.toString(job.getJobId()));
-		if(jobDir.isDirectory())
+		if (jobDir.isDirectory())
 			dao.updateStatus(job, Job.RSNA_WAITING_FOR_TRANSFER_CONTENT);
 		else
 			dao.updateStatus(job, Job.RSNA_DICOM_C_MOVE_FAILED, "No images received.");
-		
+
 
 		return true;
 	}
@@ -359,16 +361,70 @@ public class DcmUtil
 
 		@Override
 		public void onDimseRSP(Association as, DicomObject cmd, DicomObject data)
-		{			
+		{
 			if (!CommandUtils.isPending(cmd))
 			{
 				status = cmd.getInt(Tag.Status);
 
 				error = cmd.getString(Tag.ErrorComment, "");
 			}
-			
-			
+
+
 			updateCount(as, cmd);
 		}
+
+	}
+
+	public static Association connect(Device device,
+			TransferCapability[] capabilities, String threadName)
+			throws SQLException, ConfigurationException, IOException, InterruptedException
+	{
+		NetworkConnection remoteConn = new NetworkConnection();
+		remoteConn.setHostname(device.getHost());
+		remoteConn.setPort(device.getPort());
+
+		NetworkApplicationEntity remoteAe = new NetworkApplicationEntity();
+		remoteAe.setAETitle(device.getAeTitle());
+		remoteAe.setAssociationAcceptor(true);
+		remoteAe.setNetworkConnection(remoteConn);
+
+
+		NetworkConnection localConn = new NetworkConnection();
+
+		ConfigurationDao confDao = new ConfigurationDao();
+		String scuAeTitle = confDao.getConfiguration("scu-ae-title");
+
+		NetworkApplicationEntity localAe = new NetworkApplicationEntity();
+		localAe.setAETitle(scuAeTitle);
+		localAe.setAssociationInitiator(true);
+		localAe.setNetworkConnection(localConn);
+		localAe.setRetrieveRspTimeout((int) DateUtils.MILLIS_PER_DAY);
+		localAe.setTransferCapability(capabilities);
+
+
+
+		org.dcm4che2.net.Device dcmDevice = new org.dcm4che2.net.Device();
+		dcmDevice.setNetworkApplicationEntity(localAe);
+		dcmDevice.setNetworkConnection(localConn);
+
+
+		Executor executor = new NewThreadExecutor(threadName);
+
+		return localAe.connect(remoteAe, executor);
+	}
+
+	public static TransferCapability selectCapabilityAsScu(Association assoc, 
+			TransferCapability requested[])
+	{
+		for (TransferCapability tc : requested)
+		{
+			TransferCapability supported
+					= assoc.getTransferCapabilityAsSCU(tc.getSopClass());
+			
+			if (supported != null)
+				return supported;
+		}
+		
+		return null;
 	}
 }

@@ -32,9 +32,9 @@ import org.rsna.isn.domain.Exam;
 import org.rsna.isn.domain.Job;
 
 /**
- * This class monitors the RSNA database for new jobs. If it finds a
- * new job, it will spawn a worker thread to process the job.  Currently a max
- * of five concurrent worker threads are allowed.
+ * This class monitors the RSNA database for new jobs. If it finds a new job, it
+ * will spawn a worker thread to process the job. Currently a max of five
+ * concurrent worker threads are allowed.
  *
  * @author Wyatt Tellis
  * @version 2.1.0
@@ -92,19 +92,30 @@ class Monitor extends Thread
 				Set<Job> newJobs = dao.getJobsByStatus(Job.RSNA_WAITING_FOR_PREPARE_CONTENT);
 				for (Job job : newJobs)
 				{
-					Exam exam = job.getExam();					
+					Exam exam = job.getExam();
+					if (exam == null)
+					{
+						// This is pretty serious and suggests there's a
+						// database problem
+						dao.updateStatus(job,
+								Job.RSNA_FAILED_TO_PREPARE_CONTENT, "Unable to load exam data");
+
+						continue;
+					}
+
+
 					if (!isReportReady(exam))
 					{
-						if("CANCELED".equals(exam.getStatus()))
+						if ("CANCELED".equals(exam.getStatus()))
 						{
-							dao.updateStatus(job, Job.RSNA_FAILED_TO_PREPARE_CONTENT, 
+							dao.updateStatus(job, Job.RSNA_FAILED_TO_PREPARE_CONTENT,
 									"Exam has been canceled");
 						}
 						else
 						{
 							dao.updateStatus(job, Job.RSNA_WAITING_FOR_EXAM_FINALIZATION);
 						}
-						
+
 						continue;
 					}
 
@@ -141,16 +152,27 @@ class Monitor extends Thread
 				for (Job job : jobsWaitingForReport)
 				{
 					Exam exam = job.getExam();
+					if (exam == null)
+					{
+						// This is pretty serious and suggests there's a
+						// database problem
+						dao.updateStatus(job,
+								Job.RSNA_FAILED_TO_PREPARE_CONTENT, "Unable to load exam data");
+
+						continue;
+					}
+
+
 
 					if (!isReportReady(exam))
 					{
-						if("CANCELED".equals(exam.getStatus()))
+						if ("CANCELED".equals(exam.getStatus()))
 						{
-							dao.updateStatus(job, Job.RSNA_FAILED_TO_PREPARE_CONTENT, 
+							dao.updateStatus(job, Job.RSNA_FAILED_TO_PREPARE_CONTENT,
 									"Exam has been canceled");
 						}
-						
-						
+
+
 						continue;
 					}
 
@@ -188,6 +210,16 @@ class Monitor extends Thread
 				for (Job job : jobsWaitingForTransmitDelay)
 				{
 					Exam exam = job.getExam();
+					if (exam == null)
+					{
+						// This is pretty serious and suggests there's a
+						// database problem
+						dao.updateStatus(job,
+								Job.RSNA_FAILED_TO_PREPARE_CONTENT, "Unable to load exam data");
+
+						continue;
+					}
+
 
 					long age = System.currentTimeMillis()
 							- exam.getStatusTimestamp().getTime();
@@ -244,7 +276,7 @@ class Monitor extends Thread
 
 				break;
 			}
-			catch (Exception ex)
+			catch (Throwable ex)
 			{
 				logger.fatal("Uncaught exception while processing jobs.", ex);
 

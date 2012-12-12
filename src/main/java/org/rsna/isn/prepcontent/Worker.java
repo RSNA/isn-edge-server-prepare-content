@@ -23,27 +23,41 @@
  */
 package org.rsna.isn.prepcontent;
 
-import java.util.Set;
+import java.io.File;
+import java.sql.SQLException;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang.math.NumberUtils;
 import org.apache.log4j.Logger;
-import org.rsna.isn.dao.DeviceDao;
+import org.dcm4che2.net.CommandUtils;
+import org.rsna.isn.dao.ConfigurationDao;
 import org.rsna.isn.dao.JobDao;
-import org.rsna.isn.prepcontent.dcm.DcmUtil;
 import org.rsna.isn.domain.Device;
 import org.rsna.isn.domain.Exam;
 import org.rsna.isn.domain.Job;
+import org.rsna.isn.prepcontent.dcm.CFind;
+import org.rsna.isn.prepcontent.dcm.CFindResponse;
+import org.rsna.isn.prepcontent.dcm.CMove;
+import org.rsna.isn.prepcontent.dcm.CMoveResponse;
+import org.rsna.isn.util.Environment;
+import org.rsna.isn.util.FileUtil;
 
 /**
  * Worker thread that processes jobs.
  *
  * @author Wyatt Tellis
- * @version 2.1.0
+ * @since 1.0.0
+ * @version 3.1.0
  */
 class Worker extends Thread
 {
 	private static final Logger logger = Logger.getLogger(Worker.class);
 
 	private final Job job;
+
+	private final JobDao dao = new JobDao();
 
 	Worker(ThreadGroup group, Job job)
 	{
@@ -59,59 +73,217 @@ class Worker extends Thread
 
 		try
 		{
-			JobDao dao = new JobDao();
+			Exam exam = job.getExam();
+
+			String mrn = exam.getMrn();
+			if (StringUtils.isEmpty(mrn))
+			{
+				dao.updateStatus(job, Job.RSNA_FAILED_TO_PREPARE_CONTENT, "No MRN");
+
+				return;
+			}
+
+			String accNum = exam.getAccNum();
+			if (StringUtils.isEmpty(accNum))
+			{
+				dao.updateStatus(job, Job.RSNA_FAILED_TO_PREPARE_CONTENT, "No accession number");
+
+				return;
+			}
+
+
+
 			try
 			{
-				Exam exam = job.getExam();
-				String mrn = exam.getMrn();
-				String accNum = exam.getAccNum();
-
-				if (StringUtils.isEmpty(mrn))
+				List<CFindResponse> findRsps = CFind.findStudies(job);
+				if (findRsps.isEmpty())
 				{
-					dao.updateStatus(job, Job.RSNA_FAILED_TO_PREPARE_CONTENT, "No mrn");
+					dao.updateStatus(job, Job.RSNA_UNABLE_TO_FIND_IMAGES,
+							"Could not find any images for this exam.");
+
+					logger.error("Could not find any images associated with " + job);
 
 					return;
 				}
-				else if (StringUtils.isEmpty(accNum))
+
+				// Remove any duplicate studies
+				// Need this for complex setups like the Mayo
+				Map<String, CFindResponse> studies = new HashMap();
+				for (CFindResponse response : findRsps)
 				{
-					dao.updateStatus(job, Job.RSNA_FAILED_TO_PREPARE_CONTENT, "No acc #");
-
-					return;
-				}
-				else
-				{
-					//File examDir = new File(new File(dcmDir, mrn), accNum);
-					//FileUtils.deleteDirectory(examDir);
-
-					DeviceDao deviceDao = new DeviceDao();
-
-					Set<Device> devices = deviceDao.getDevices();
-					for (Device device : devices)
+					String studyUid = response.getStudyUid();
+					if (studies.containsKey(studyUid))
 					{
-						try
+						CFindResponse temp = studies.get(studyUid);
+						String tempAe = temp.getDevice().getAeTitle();
+						String responseAe = response.getDevice().getAeTitle();
+
+						if (response.getCount() > temp.getCount())
 						{
-							if (DcmUtil.doCMove(device, job))
+							logger.warn("Study uid " + studyUid + " was found on both "
+									+ tempAe + " and "
+									+ responseAe + ". Using instance from " + responseAe);
+
+							studies.put(studyUid, response);
+						}
+						else
+						{
+							logger.warn("Study uid " + studyUid + " was found on both "
+									+ tempAe + " and "
+									+ responseAe + ". Using instance from " + tempAe);
+						}
+					}
+					else
+					{
+						studies.put(studyUid, response);
+					}
+				}
+
+
+
+
+				File dcmDir = Environment.getDcmDir();
+				File jobDir = FileUtil.newFile(dcmDir, job.getJobId());
+
+				for (CFindResponse findRsp : studies.values())
+				{
+					Device device = findRsp.getDevice();
+					String ae = device.getAeTitle();
+
+
+					int expectedCount = findRsp.getCount();
+					String studyUid = findRsp.getStudyUid();
+
+					File patDir = FileUtil.newFile(jobDir, mrn);
+					File examDir = FileUtil.newFile(patDir, (accNum));
+					File studyDir = FileUtil.newFile(examDir, studyUid);
+
+					int dirCount = FileUtil.getFileCount(studyDir);
+
+					if (expectedCount > 0 && dirCount == expectedCount)
+					{
+						// We already got the images, so there's no need to do a 
+						// C-MOVE
+						logger.warn("Skipping C-MOVE of study " + studyUid
+								+ " for " + job + ". Using cached copy "
+								+ "of images from directory " + studyDir);
+
+						continue;
+					}
+					else if (expectedCount > 0 && dirCount > expectedCount)
+					{
+						// We got more images than expected, so let's just
+						// wait to see how many total we get
+
+						logger.warn("Found cached copy of images for "
+								+ studyUid + " for " + job + " in directory "
+								+ studyDir + " with more images that expected. "
+								+ "Expected " + expectedCount + ", found " + dirCount + ".  "
+								+ "Going to skip C-MOVE and wait for all images to arrive.");
+
+						// We don't really know how many images to expect
+						expectedCount = 0;
+					}
+					else
+					{
+						// Do the C-MOVE
+
+						CMoveResponse moveRsp =
+								CMove.retrieveStudy(device, job, studyUid, expectedCount);
+						if (moveRsp == null)
+						{
+							logger.fatal("C-MOVE of study " + studyUid + " from " + ae
+									+ " for job " + job + " failed due to an unknown error");
+
+							dao.updateStatus(job, Job.RSNA_DICOM_C_MOVE_FAILED,
+									"C-MOVE of study " + studyUid + " from "
+									+ ae + " failed due to an unknown error");
+
+							return;
+						}
+						else
+						{
+							int status = moveRsp.getStatus();
+							if (status != CommandUtils.SUCCESS)
 							{
-								logger.info("Completed processing " + job);
+								String comment = moveRsp.getComments();
+
+								logger.fatal("C-MOVE of study " + studyUid + " from "
+										+ ae + " for job " + job + " failed. Error code "
+										+ "returned by remote PACS is: " + status + ".  "
+										+ "Error comment returned by remote PACS is: " + comment);
+
+								dao.updateStatus(job, Job.RSNA_DICOM_C_MOVE_FAILED,
+										"C-MOVE of study " + studyUid + " from "
+										+ ae + " failed. Error code returned "
+										+ "by remote PACS is: " + status + ".  "
+										+ "Error comment returned by "
+										+ "remote PACS is: \"" + comment + "\".  ");
 
 								return;
 							}
 						}
-						catch (Exception ex)
+
+						// Make sure we actually got the expected number of images
+						dirCount = FileUtil.getFileCount(studyDir);
+						if (expectedCount > 0 && dirCount == expectedCount)
 						{
-							logger.error("Uncaught exception while doing C-MOVE for " + job, ex);
+							logger.info("Received " + dirCount + " objects "
+									+ "for study " + studyUid + " from " + ae + " "
+									+ "for " + job);
 
-							dao.updateStatus(job, Job.RSNA_DICOM_C_MOVE_FAILED, ex);
-
-							return;
+							continue;
 						}
 					}
 
-					dao.updateStatus(job, Job.RSNA_UNABLE_TO_FIND_IMAGES,
-							"Could not find any images for this exam.");
+					// Wait to see if images arrive at a later point in time
+					// Some PACS systems (e.g. Intelerad) do an asynchronous
+					// C-MOVE
+					dirCount = waitForImages(studyDir, expectedCount);
+					if (dirCount == 0)
+					{
+						// Nothing arrived so just mark the job as failed
+						logger.warn("Retrieval of study " + studyUid + " from "
+								+ ae + " for " + job + " failed.  "
+								+ "No images were received.");
+
+						dao.updateStatus(job, Job.RSNA_DICOM_C_MOVE_FAILED,
+								"Retrieval of study " + studyUid + " from "
+								+ ae + " failed.  No images were received.");
+
+						return;
+					}
+					else if (expectedCount > 0 && dirCount < expectedCount)
+					{
+						// We got fewer images than expected. 
+						logger.warn("Retrieval of study " + studyUid + " from "
+								+ ae + " for " + job + " failed.  "
+								+ "Only " + dirCount + " of " + expectedCount
+								+ " images were received.");
+
+						dao.updateStatus(job, Job.RSNA_DICOM_C_MOVE_FAILED,
+								"Retrieval of study " + studyUid + " from "
+								+ ae + " failed. Only " + dirCount
+								+ " of " + expectedCount + " images were received.");
+
+						return;
+					}
+					else
+					{
+						// We're done, go on to the next study (if any)
+						logger.info("Retrieval of study " + studyUid + " for "
+								+ job + " was successful.  A total of " + dirCount
+								+ " images were received and stored in " + studyDir);
+						
+						continue;
+					}
+
+
 				}
 
+				dao.updateStatus(job, Job.RSNA_WAITING_FOR_TRANSFER_CONTENT);
 
+				logger.info("Successfully processed " + job);
 			}
 			catch (Exception ex)
 			{
@@ -120,10 +292,74 @@ class Worker extends Thread
 				dao.updateStatus(job, Job.RSNA_FAILED_TO_PREPARE_CONTENT, ex);
 			}
 		}
-		catch (Exception ex)
+		catch (SQLException ex)
 		{
-			logger.error("Uncaught exception while updating job " + job, ex);
+			logger.error("Uncaught exception while updating status of job " + job, ex);
 		}
+		catch (Throwable ex)
+		{
+			logger.fatal("Uncaught exception while processing job " + job, ex);
+		}
+	}
+
+	@SuppressWarnings("SleepWhileInLoop")
+	private int waitForImages(File dir, int expected) throws SQLException, InterruptedException
+	{
+		int current = FileUtil.getFileCount(dir);
+		int prev = current;
+
+
+		ConfigurationDao config = new ConfigurationDao();
+		String str = config.getConfiguration("retrieve-timeout-secs");
+
+		long timeout = NumberUtils.toLong(str, 600) * 1000L;
+		long start = System.currentTimeMillis();
+		long now = System.currentTimeMillis();
+		long elapsed = now - start;
+
+
+		while (elapsed < timeout)
+		{
+			current = FileUtil.getFileCount(dir);
+			if (expected > 0 && current >= expected)
+				return current;
+
+			if (current != prev)
+			{
+				// Reset the countdown timer when we get new images
+				prev = current;
+				start = System.currentTimeMillis();
+			}
+			else if (expected > 0 && current == expected)
+			{
+				// We got everything
+
+				return current;
+			}
+			else if (expected > 0 && current > expected)
+			{
+				// We got more images than expected, so we can't
+				// trust the value of expected. 
+				logger.warn("More images were found in " + dir
+						+ " than were expected. Expecting "
+						+ expected + ", found " + current + ". ");
+
+				expected = 0;
+			}
+
+			now = System.currentTimeMillis();
+			elapsed = now - start;
+			
+			long remaining = (timeout - elapsed) / 1000L;
+			
+			dao.updateComments(job, Job.RSNA_STARTED_DICOM_C_MOVE, 
+					"Waiting for images. Timeout expires in " + remaining + " secs.");
+
+			sleep(1000);
+		}
+
+
+		return current;
 	}
 
 }
