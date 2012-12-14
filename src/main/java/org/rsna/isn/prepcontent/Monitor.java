@@ -262,10 +262,33 @@ class Monitor extends Thread
 						continue;
 					}
 
-					dao.updateStatus(job, Job.RSNA_STARTED_DICOM_C_MOVE);
+					String name = "worker-" + job.getJobId();
 
-					Worker worker = new Worker(group, job);
-					worker.start();
+
+					Thread active[] = new Thread[group.activeCount()];
+					group.enumerate(active);
+
+					boolean alreadyRunning = false;
+					for (Thread t : active)
+					{
+						if (name.equals(t.getName()))
+						{
+							logger.warn("Unable to start thread for " + job
+									+ ". An existing thread is already active.");
+
+							alreadyRunning = true;
+							break;
+						}
+					}
+
+
+					if (!alreadyRunning)
+					{
+						dao.updateStatus(job, Job.RSNA_STARTED_DICOM_C_MOVE);
+
+						Worker worker = new Worker(group, job, name);
+						worker.start();
+					}
 				}
 
 				sleep(1000);

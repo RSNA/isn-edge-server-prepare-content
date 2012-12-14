@@ -27,8 +27,10 @@ import java.io.File;
 import java.io.IOException;
 import java.sql.SQLException;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.apache.commons.lang.StringUtils;
 import org.apache.log4j.Logger;
 import org.dcm4che2.data.BasicDicomObject;
@@ -60,24 +62,28 @@ import org.rsna.isn.util.FileUtil;
 public class CStoreHandler extends DicomService implements CStoreSCP, AssociationListener
 {
 	private static final Logger logger = Logger.getLogger(CStoreHandler.class);
-	
+
 	private static final ThreadLocal<Map<String, List<Job>>> jobsMap = new ThreadLocal();
-	
+
+	private static final ThreadLocal<Set<Job>> jobsToRetry = new ThreadLocal();
+
 	public final File dcmDir;
-	
+
 	public CStoreHandler(String[] sopClasses)
 	{
 		super(sopClasses);
-		
+
 		this.dcmDir = Environment.getDcmDir();
 	}
-	
+
 	@Override
 	public void associationAccepted(AssociationAcceptEvent event)
 	{
 		jobsMap.set(new HashMap());
+
+		jobsToRetry.set(new HashSet());
 	}
-	
+
 	@Override
 	public void cstore(Association as, int pcid, DicomObject cmd,
 			PDVInputStream dataStream, String tsuid) throws DicomServiceException, IOException
@@ -85,45 +91,45 @@ public class CStoreHandler extends DicomService implements CStoreSCP, Associatio
 		try
 		{
 			DicomObject dcmObj = dataStream.readDataset();
-			
+
 			String mrn = dcmObj.getString(Tag.PatientID);
 			if (StringUtils.isBlank(mrn))
 			{
 				logger.warn("Patient id is empty");
-				
+
 				throw new DicomServiceException(cmd,
 						Status.ProcessingFailure, "Patient id is empty");
 			}
-			
+
 			String accNum = dcmObj.getString(Tag.AccessionNumber);
 			if (StringUtils.isBlank(accNum))
 			{
 				logger.warn("Accession number is empty");
-				
+
 				throw new DicomServiceException(cmd,
 						Status.ProcessingFailure, "Accession number is empty");
 			}
-			
+
 			String studyUid = dcmObj.getString(Tag.StudyInstanceUID);
 			if (StringUtils.isBlank(studyUid))
 			{
 				logger.warn("Study UID is empty");
-				
+
 				throw new DicomServiceException(cmd,
 						Status.ProcessingFailure, "Study UID is empty");
 			}
-			
-			
+
+
 			String instanceUid = dcmObj.getString(Tag.SOPInstanceUID);
 			if (StringUtils.isBlank(instanceUid))
 			{
 				logger.warn("SOP instance UID is empty");
-				
+
 				throw new DicomServiceException(cmd,
 						Status.ProcessingFailure, "SOP instance UID is empty");
 			}
-			
-			
+
+
 			String key = mrn + "/" + accNum;
 			Map<String, List<Job>> map = jobsMap.get();
 			List<Job> jobs = map.get(key);
@@ -133,46 +139,61 @@ public class CStoreHandler extends DicomService implements CStoreSCP, Associatio
 				jobs = dao.findJobs(mrn, accNum,
 						Job.RSNA_STARTED_DICOM_C_MOVE, Job.RSNA_FAILED_TO_PREPARE_CONTENT,
 						Job.RSNA_UNABLE_TO_FIND_IMAGES, Job.RSNA_DICOM_C_MOVE_FAILED);
-				
+
 				if (jobs.isEmpty())
 				{
 					logger.warn("No pending jobs associated with: " + mrn + "/" + accNum);
-					
+
 					throw new DicomServiceException(cmd, Status.ProcessingFailure,
 							"No pending jobs associated with this study.");
 				}
-				
+
+				Set<Job> retries = jobsToRetry.get();
+				for (Job job : jobs)
+				{
+					int status = job.getStatus();
+					if (status < 0)
+					{
+						dao.updateStatus(job, Job.RSNA_STARTED_DICOM_C_MOVE,
+								"Receiving images for study " + studyUid);
+
+						retries.add(job);
+
+						logger.warn("Flagging " + job + " as in progress.");
+					}
+				}
+
 				map.put(key, jobs);
 			}
-			
-			
+
+
 			for (Job job : jobs)
 			{
 				int jobId = job.getJobId();
-				
+
 				File jobDir = FileUtil.newFile(dcmDir, jobId);
 				File patDir = FileUtil.newFile(jobDir, mrn);
 				File examDir = FileUtil.newFile(patDir, accNum);
 				File studyDir = FileUtil.newFile(examDir, studyUid);
-				
+
 				studyDir.mkdirs();
-				
+
 				BasicDicomObject fmi = new BasicDicomObject();
 				String classUid = dcmObj.getString(Tag.SOPClassUID);
 				fmi.initFileMetaInformation(classUid, instanceUid, tsuid);
-				
-				
+
+
 				File dcmFile = FileUtil.newFile(studyDir, instanceUid + ".dcm");
 				DicomOutputStream dout = new DicomOutputStream(dcmFile);
 				dout.writeFileMetaInformation(fmi);
 				dout.writeDataset(dcmObj, tsuid);
-				
+
 				dout.close();
-				
+
 				logger.info("Saved file " + dcmFile + " for " + jobId);
 			}
-			
-			
+
+
 			as.writeDimseRSP(pcid, CommandUtils.mkRSP(cmd, CommandUtils.SUCCESS));
 		}
 		catch (IOException ex) // Includes DicomServiceException
@@ -182,41 +203,43 @@ public class CStoreHandler extends DicomService implements CStoreSCP, Associatio
 		catch (Throwable ex)
 		{
 			logger.warn("Unable to store object due to uncaught exception.", ex);
-			
+
 			throw new DicomServiceException(cmd, Status.ProcessingFailure, ex.getMessage());
 		}
 	}
-	
+
 	@Override
 	public void associationClosed(AssociationCloseEvent event)
 	{
 		JobDao dao = new JobDao();
-		
-		Map<String, List<Job>> map = jobsMap.get();
-		for (List<Job> jobs : map.values())
+
+		Set<Job> jobs = jobsToRetry.get();
+		for (Job job : jobs)
 		{
-			for (Job job : jobs)
+			try
 			{
-				try
+				Job retry = dao.getJobById(job.getJobId());
+				if(retry == null) // Shouldn't happen but just in case
+					continue;
+				
+				int status = retry.getStatus();				
+				if (status == Job.RSNA_STARTED_DICOM_C_MOVE)
 				{
-					int status = job.getStatus();
-					if (status < 0)
-					{
-						dao.updateStatus(job,
-								Job.RSNA_WAITING_FOR_PREPARE_CONTENT, "Retried by SCP");
-						
-						logger.warn("Retrying " + job);
-					}
-				}
-				catch (SQLException ex)
-				{
-					logger.warn("Unable to retry " + job, ex);
+					dao.updateStatus(job,
+							Job.RSNA_WAITING_FOR_PREPARE_CONTENT, "Retried by SCP");
+
+					logger.warn("Retrying " + job);
 				}
 			}
+			catch (SQLException ex)
+			{
+				logger.warn("Unable to retry " + job, ex);
+			}
 		}
-		
-		
+
+
+		jobsToRetry.remove();
 		jobsMap.remove();
 	}
-	
+
 }

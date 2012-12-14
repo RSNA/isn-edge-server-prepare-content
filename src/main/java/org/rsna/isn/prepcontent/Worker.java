@@ -59,9 +59,9 @@ class Worker extends Thread
 
 	private final JobDao dao = new JobDao();
 
-	Worker(ThreadGroup group, Job job)
+	Worker(ThreadGroup group, Job job, String name)
 	{
-		super(group, "worker-" + job.getJobId());
+		super(group, name);
 
 		this.job = job;
 	}
@@ -239,6 +239,10 @@ class Worker extends Thread
 					// Wait to see if images arrive at a later point in time
 					// Some PACS systems (e.g. Intelerad) do an asynchronous
 					// C-MOVE
+					ConfigurationDao configDao = new ConfigurationDao();
+					String config = configDao.getConfiguration("fail_on_incomplete_study");
+					boolean fail = Boolean.parseBoolean(config);
+
 					dirCount = waitForImages(studyDir, expectedCount);
 					if (dirCount == 0)
 					{
@@ -253,7 +257,7 @@ class Worker extends Thread
 
 						return;
 					}
-					else if (expectedCount > 0 && dirCount < expectedCount)
+					else if (expectedCount > 0 && fail && dirCount < expectedCount)
 					{
 						// We got fewer images than expected. 
 						logger.warn("Retrieval of study " + studyUid + " from "
@@ -271,14 +275,23 @@ class Worker extends Thread
 					else
 					{
 						// We're done, go on to the next study (if any)
-						logger.info("Retrieval of study " + studyUid + " for "
-								+ job + " was successful.  A total of " + dirCount
-								+ " images were received and stored in " + studyDir);
 						
+						if (expectedCount > 0 && dirCount < expectedCount)
+						{
+							logger.warn("Retrieval of study " + studyUid + " for "
+									+ job + " was partially completed.  A total of " 
+									+ dirCount + " out of " + expectedCount
+									+ " images were received and stored in " + studyDir);
+						}
+						else
+						{							
+							logger.info("Retrieval of study " + studyUid + " for "
+									+ job + " was successful.  A total of " + dirCount
+									+ " images were received and stored in " + studyDir);
+						}
+
 						continue;
 					}
-
-
 				}
 
 				dao.updateStatus(job, Job.RSNA_WAITING_FOR_TRANSFER_CONTENT);
@@ -349,10 +362,10 @@ class Worker extends Thread
 
 			now = System.currentTimeMillis();
 			elapsed = now - start;
-			
+
 			long remaining = (timeout - elapsed) / 1000L;
-			
-			dao.updateComments(job, Job.RSNA_STARTED_DICOM_C_MOVE, 
+
+			dao.updateComments(job, Job.RSNA_STARTED_DICOM_C_MOVE,
 					"Waiting for images. Timeout expires in " + remaining + " secs.");
 
 			sleep(1000);
