@@ -190,7 +190,7 @@ public class CStoreHandler extends DicomService implements CStoreSCP, Associatio
 
 				dout.close();
 
-				logger.info("Saved file " + dcmFile + " for " + jobId);
+				logger.info("Saved file " + dcmFile + " for " + job);
 			}
 
 

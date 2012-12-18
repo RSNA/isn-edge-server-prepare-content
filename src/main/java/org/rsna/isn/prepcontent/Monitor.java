@@ -26,6 +26,7 @@ package org.rsna.isn.prepcontent;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 import org.rsna.isn.dao.JobDao;
 import org.rsna.isn.domain.Exam;
@@ -53,6 +54,7 @@ class Monitor extends Thread
 	}
 
 	@Override
+	@SuppressWarnings("SleepWhileInLoop")
 	public void run()
 	{
 		logger.info("Started monitor thread");
@@ -89,6 +91,7 @@ class Monitor extends Thread
 				//
 				// Evaluate newly created jobs
 				//
+				logger.debug("Retrieving list of new jobs...");
 				Set<Job> newJobs = dao.getJobsByStatus(Job.RSNA_WAITING_FOR_PREPARE_CONTENT);
 				for (Job job : newJobs)
 				{
@@ -100,6 +103,8 @@ class Monitor extends Thread
 						dao.updateStatus(job,
 								Job.RSNA_FAILED_TO_PREPARE_CONTENT, "Unable to load exam data");
 
+						logger.warn("Unable to load exam data for " + job);
+
 						continue;
 					}
 
@@ -110,10 +115,14 @@ class Monitor extends Thread
 						{
 							dao.updateStatus(job, Job.RSNA_FAILED_TO_PREPARE_CONTENT,
 									"Exam has been canceled");
+
+							logger.warn("Exam has been canceled for " + job);
 						}
 						else
 						{
 							dao.updateStatus(job, Job.RSNA_WAITING_FOR_EXAM_FINALIZATION);
+							
+							logger.debug("Report is pending finalization for " + job);
 						}
 
 						continue;
@@ -148,6 +157,7 @@ class Monitor extends Thread
 				//
 				// Evaluate jobs that are waiting for a final report
 				//
+				logger.debug("Retrieving list of jobs waiting for reports...");
 				Set<Job> jobsWaitingForReport = dao.getJobsByStatus(Job.RSNA_WAITING_FOR_EXAM_FINALIZATION);
 				for (Job job : jobsWaitingForReport)
 				{
@@ -158,6 +168,8 @@ class Monitor extends Thread
 						// database problem
 						dao.updateStatus(job,
 								Job.RSNA_FAILED_TO_PREPARE_CONTENT, "Unable to load exam data");
+
+						logger.warn("Unable to load exam data for " + job);
 
 						continue;
 					}
@@ -170,6 +182,8 @@ class Monitor extends Thread
 						{
 							dao.updateStatus(job, Job.RSNA_FAILED_TO_PREPARE_CONTENT,
 									"Exam has been canceled");
+
+							logger.warn("Exam has been canceled for " + job);
 						}
 
 
@@ -206,6 +220,7 @@ class Monitor extends Thread
 				// Evaluate jobs that are waiting for transmit delay to
 				// expire
 				//
+				logger.debug("Retrieving list of jobs waiting for delay expiration...");
 				Set<Job> jobsWaitingForTransmitDelay = dao.getJobsByStatus(Job.RSNA_WAITING_FOR_DELAY_EXPIRATION);
 				for (Job job : jobsWaitingForTransmitDelay)
 				{
@@ -216,6 +231,8 @@ class Monitor extends Thread
 						// database problem
 						dao.updateStatus(job,
 								Job.RSNA_FAILED_TO_PREPARE_CONTENT, "Unable to load exam data");
+
+						logger.warn("Unable to load exam data for " + job);
 
 						continue;
 					}
@@ -244,7 +261,13 @@ class Monitor extends Thread
 				for (Job job : jobsToProcess)
 				{
 					if (group.activeCount() >= 5)
+					{
+						logger.warn("Too many jobs active.  Pausing monitor thread");
+						
+						Thread.sleep(10 * 1000);
+						
 						break;
+					}
 
 
 					Exam exam = job.getExam();
@@ -266,11 +289,15 @@ class Monitor extends Thread
 
 
 					Thread active[] = new Thread[group.activeCount()];
-					group.enumerate(active);
+					int count = group.enumerate(active);
 
 					boolean alreadyRunning = false;
-					for (Thread t : active)
+					for (int i = 0; i < count && i < active.length; i++)
 					{
+						Thread t = active[i];
+						if(t == null)
+							continue;
+						
 						if (name.equals(t.getName()))
 						{
 							logger.warn("Unable to start thread for " + job
@@ -296,14 +323,19 @@ class Monitor extends Thread
 			catch (InterruptedException ex)
 			{
 				logger.fatal("Monitor thread interrupted", ex);
-
-				break;
+				
+				LogManager.shutdown();
+				
+				System.exit(1);
 			}
 			catch (Throwable ex)
 			{
-				logger.fatal("Uncaught exception while processing jobs.", ex);
-
-				break;
+				logger.fatal("Uncaught exception while processing jobs. "
+						+ "Monitor thread shutdown", ex);
+				
+				LogManager.shutdown();
+				
+				System.exit(1);
 			}
 		}
 
