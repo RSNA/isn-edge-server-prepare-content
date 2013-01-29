@@ -63,9 +63,11 @@ public class CStoreHandler extends DicomService implements CStoreSCP, Associatio
 {
 	private static final Logger logger = Logger.getLogger(CStoreHandler.class);
 
-	private static final ThreadLocal<Map<String, List<Job>>> jobsMap = new ThreadLocal();
+	private static final ThreadLocal<Map<String, List<Job>>> jobsMap =
+			new ThreadLocal<Map<String, List<Job>>>();
 
-	private static final ThreadLocal<Set<Job>> jobsToRetry = new ThreadLocal();
+	private static final ThreadLocal<Set<Job>> jobsToRetry =
+			new ThreadLocal<Set<Job>>();
 
 	public final File dcmDir;
 
@@ -79,9 +81,9 @@ public class CStoreHandler extends DicomService implements CStoreSCP, Associatio
 	@Override
 	public void associationAccepted(AssociationAcceptEvent event)
 	{
-		jobsMap.set(new HashMap());
+		jobsMap.set(new HashMap<String, List<Job>>());
 
-		jobsToRetry.set(new HashSet());
+		jobsToRetry.set(new HashSet<Job>());
 	}
 
 	@Override
@@ -219,10 +221,10 @@ public class CStoreHandler extends DicomService implements CStoreSCP, Associatio
 			try
 			{
 				Job retry = dao.getJobById(job.getJobId());
-				if(retry == null) // Shouldn't happen but just in case
+				if (retry == null) // Shouldn't happen but just in case
 					continue;
-				
-				int status = retry.getStatus();				
+
+				int status = retry.getStatus();
 				if (status == Job.RSNA_STARTED_DICOM_C_MOVE)
 				{
 					dao.updateStatus(job,

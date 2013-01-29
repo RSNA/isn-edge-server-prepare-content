@@ -63,7 +63,7 @@ class Monitor extends Thread
 
 		try
 		{
-			Set<Job> interruptedJobs = new HashSet();
+			Set<Job> interruptedJobs = new HashSet<Job>();
 			interruptedJobs.addAll(dao.getJobsByStatus(Job.RSNA_STARTED_DICOM_C_MOVE));
 
 			for (Job job : interruptedJobs)

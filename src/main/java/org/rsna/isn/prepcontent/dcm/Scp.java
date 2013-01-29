@@ -108,7 +108,7 @@ public class Scp
 		ae.setAssociationAcceptor(true);
 
 
-		List<TransferCapability> capabilities = new ArrayList();
+		List<TransferCapability> capabilities = new ArrayList<TransferCapability>();
 
 
 
@@ -160,7 +160,7 @@ public class Scp
 
 
 		// Setup the presentation contexts
-		Map<String, String[]> pcs = new TreeMap();
+		Map<String, String[]> pcs = new TreeMap<String, String[]>();
 		for (String sopClass : props.stringPropertyNames())
 		{
 			if (!UIDUtils.isValidUID(sopClass))

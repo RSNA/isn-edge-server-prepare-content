@@ -47,7 +47,7 @@ import org.rsna.isn.domain.Job;
 
 /**
  * DICOM C-FIND utility class
- * 
+ *
  * @author Wyatt Tellis
  * @since 3.1.0
  * @version 3.1.0
@@ -55,14 +55,14 @@ import org.rsna.isn.domain.Job;
 public class CFind
 {
 	private static final Logger logger = Logger.getLogger(CFind.class);
-	
+
 	private static TransferCapability capabilities[] =
 			new TransferCapability[2];
-	
+
 	private final Device device;
-	
+
 	private final Job job;
-	
+
 	static
 	{
 		String txs[] =
@@ -70,38 +70,38 @@ public class CFind
 			UID.ImplicitVRLittleEndian,
 			UID.ExplicitVRLittleEndian
 		};
-		
-		
+
+
 		TransferCapability patientRoot =
 				new TransferCapability(UID.PatientRootQueryRetrieveInformationModelFIND,
 				txs, TransferCapability.SCU);
 		capabilities[0] = patientRoot;
-		
-		
+
+
 		TransferCapability studyRoot =
 				new TransferCapability(UID.StudyRootQueryRetrieveInformationModelFIND,
 				txs, TransferCapability.SCU);
 		capabilities[1] = studyRoot;
 	}
-	
+
 	private CFind(Device device, Job job)
 	{
 		this.device = device;
 		this.job = job;
 	}
-	
+
 	private List<CFindResponse> doFind() throws SQLException,
 			ConfigurationException, IOException, InterruptedException
 	{
-		List<CFindResponse> responses = new ArrayList();
-		
+		List<CFindResponse> responses = new ArrayList<CFindResponse>();
+
 		Exam exam = job.getExam();
 		String mrn = exam.getMrn();
 		String accNum = exam.getAccNum();
-		
+
 		String name = "cfind-" + mrn + "-" + accNum;
 		Association assoc = DcmUtil.connect(device, capabilities, name);
-		
+
 		try
 		{
 			TransferCapability tc =
@@ -111,18 +111,18 @@ public class CFind
 				throw new ConfigurationException("C-FIND not supported by "
 						+ device.getAeTitle());
 			}
-			
+
 			String cuid = tc.getSopClass();
 			String tsuid = tc.getTransferSyntax()[0];
-			
+
 			DicomObject keys = new BasicDicomObject();
 			keys.putString(Tag.QueryRetrieveLevel, VR.CS, "STUDY");
 			keys.putString(Tag.PatientID, VR.LO, mrn);
 			keys.putString(Tag.AccessionNumber, VR.SH, accNum);
 			keys.putNull(Tag.StudyInstanceUID, VR.UI);
 			keys.putNull(Tag.NumberOfStudyRelatedInstances, VR.IS);
-			
-			
+
+
 			DimseRSP rsp = assoc.cfind(cuid, 0, keys, tsuid, Integer.MAX_VALUE);
 			while (rsp.next())
 			{
@@ -130,17 +130,17 @@ public class CFind
 				if (CommandUtils.isPending(cmd))
 				{
 					DicomObject dataset = rsp.getDataset();
-					
+
 					String studyUid = dataset.getString(Tag.StudyInstanceUID);
-					int count =  // Make sure we get a postive count
+					int count = // Make sure we get a postive count
 							Math.max(0, dataset.getInt(Tag.NumberOfStudyRelatedInstances));
-					
+
 					if (StringUtils.isNotBlank(studyUid))
 					{
 						CFindResponse response =
 								new CFindResponse(device, job, studyUid, count);
 						responses.add(response);
-						
+
 						logger.info("Found study for " + job + " on " + device.getAeTitle() + ".  "
 								+ "Study UID is " + studyUid + ". Image count is " + count + ".");
 					}
@@ -151,7 +151,7 @@ public class CFind
 					}
 				}
 			}
-			
+
 			return responses;
 		}
 		finally
@@ -159,24 +159,24 @@ public class CFind
 			assoc.release(true);
 		}
 	}
-	
+
 	public static List<CFindResponse> findStudies(Job job)
 			throws SQLException, ConfigurationException, IOException, InterruptedException
 	{
-		List<CFindResponse> responses = new ArrayList();
-		
+		List<CFindResponse> responses = new ArrayList<CFindResponse>();
+
 		DeviceDao deviceDao = new DeviceDao();
-		
+
 		Set<Device> devices = deviceDao.getDevices();
 		for (Device device : devices)
 		{
 			CFind cfind = new CFind(device, job);
 			List<CFindResponse> temp = cfind.doFind();
-			
+
 			responses.addAll(temp);
 		}
-		
+
 		return responses;
 	}
-	
+
 }

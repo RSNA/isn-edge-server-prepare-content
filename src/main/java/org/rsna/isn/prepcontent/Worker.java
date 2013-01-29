@@ -108,7 +108,8 @@ class Worker extends Thread
 
 				// Remove any duplicate studies
 				// Need this for complex setups like the Mayo
-				Map<String, CFindResponse> studies = new HashMap();
+				Map<String, CFindResponse> studies = 
+						new HashMap<String, CFindResponse>();
 				for (CFindResponse response : findRsps)
 				{
 					String studyUid = response.getStudyUid();
