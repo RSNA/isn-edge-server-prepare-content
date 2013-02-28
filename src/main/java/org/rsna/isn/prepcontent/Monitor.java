@@ -26,6 +26,7 @@ package org.rsna.isn.prepcontent;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import org.apache.commons.lang.ArrayUtils;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 import org.rsna.isn.dao.JobDao;
@@ -38,11 +39,18 @@ import org.rsna.isn.domain.Job;
  * concurrent worker threads are allowed.
  *
  * @author Wyatt Tellis
- * @version 2.1.0
+ * @version 3.1.0
+ * @since 1.0.0
  */
 class Monitor extends Thread
 {
 	private static final Logger logger = Logger.getLogger(Monitor.class);
+
+	private static final String IMAGES_AVAILABLE[] =
+	{
+		"COMPLETED", "DICTATED", "PRELIMINARY", "FINALIZED", "REVISED",
+		"ADDENDED", "NON-REPORTABLE"
+	};
 
 	private final ThreadGroup group = new ThreadGroup("workers");
 
@@ -85,7 +93,7 @@ class Monitor extends Thread
 		{
 			try
 			{
-				Set<Job> jobsToProcess = new HashSet();
+				Set<Job> jobsToProcess = new HashSet<Job>();
 
 
 				//
@@ -109,7 +117,7 @@ class Monitor extends Thread
 					}
 
 
-					if (!isReportReady(exam))
+					if (!isExamReadyForSend(exam, job))
 					{
 						if ("CANCELED".equals(exam.getStatus()))
 						{
@@ -118,29 +126,23 @@ class Monitor extends Thread
 
 							logger.warn("Exam has been canceled for " + job);
 						}
+						else if (job.isSendOnComplete())
+						{
+							dao.updateStatus(job, Job.RSNA_WAITING_FOR_EXAM_COMPLETION);
+
+							logger.debug("Waiting for exam completion for " + job);
+						}
 						else
 						{
 							dao.updateStatus(job, Job.RSNA_WAITING_FOR_EXAM_FINALIZATION);
-							
+
 							logger.debug("Report is pending finalization for " + job);
 						}
 
 						continue;
 					}
 
-
-					long age = System.currentTimeMillis()
-							- exam.getStatusTimestamp().getTime();
-
-					if (age < 0)
-						age = 0;
-
-					long delay = job.getDelay() * 3600000L;
-
-					if (delay < 0)
-						delay = 0;
-
-					if (age < delay)
+					if (isDelayNeeded(exam, job))
 					{
 						dao.updateStatus(job, Job.RSNA_WAITING_FOR_DELAY_EXPIRATION);
 
@@ -152,12 +154,52 @@ class Monitor extends Thread
 
 
 
+				//
+				// Evaluate jobs that are waiting for exam completion
+				//
+				logger.debug("Retrieving list of jobs with exams awaiting completion.");
+				Set<Job> jobsAwaitingCompletion = dao.getJobsByStatus(Job.RSNA_WAITING_FOR_EXAM_COMPLETION);
+				for (Job job : jobsAwaitingCompletion)
+				{
+					Exam exam = job.getExam();
+					if (exam == null)
+					{
+						// This is pretty serious and suggests there's a
+						// database problem
+						dao.updateStatus(job,
+								Job.RSNA_FAILED_TO_PREPARE_CONTENT, "Unable to load exam data");
+
+						logger.warn("Unable to load exam data for " + job);
+
+						continue;
+					}
+
+					if (!isExamReadyForSend(exam, job))
+					{
+						if ("CANCELED".equals(exam.getStatus()))
+						{
+							dao.updateStatus(job, Job.RSNA_FAILED_TO_PREPARE_CONTENT,
+									"Exam has been canceled");
+
+							logger.warn("Exam has been canceled for " + job);
+						}
+
+
+						continue;
+					}
+					
+					jobsToProcess.add(job);
+				}
+
+
+
+
 
 
 				//
 				// Evaluate jobs that are waiting for a final report
 				//
-				logger.debug("Retrieving list of jobs waiting for reports...");
+				logger.debug("Retrieving list of jobs with exams awaiting reports.");
 				Set<Job> jobsWaitingForReport = dao.getJobsByStatus(Job.RSNA_WAITING_FOR_EXAM_FINALIZATION);
 				for (Job job : jobsWaitingForReport)
 				{
@@ -176,7 +218,7 @@ class Monitor extends Thread
 
 
 
-					if (!isReportReady(exam))
+					if (!isExamReadyForSend(exam, job))
 					{
 						if ("CANCELED".equals(exam.getStatus()))
 						{
@@ -190,19 +232,7 @@ class Monitor extends Thread
 						continue;
 					}
 
-
-					long age = System.currentTimeMillis()
-							- exam.getStatusTimestamp().getTime();
-
-					if (age < 0)
-						age = 0;
-
-					long delay = job.getDelay() * 3600000L;
-
-					if (delay < 0)
-						delay = 0;
-
-					if (age < delay)
+					if (isDelayNeeded(exam, job))
 					{
 						dao.updateStatus(job, Job.RSNA_WAITING_FOR_DELAY_EXPIRATION);
 
@@ -237,19 +267,7 @@ class Monitor extends Thread
 						continue;
 					}
 
-
-					long age = System.currentTimeMillis()
-							- exam.getStatusTimestamp().getTime();
-
-					if (age < 0)
-						age = 0;
-
-					long delay = job.getDelay() * 3600000L;
-
-					if (delay < 0)
-						delay = 0;
-
-					if (age < delay)
+					if (isDelayNeeded(exam, job))
 						continue;
 
 
@@ -263,9 +281,9 @@ class Monitor extends Thread
 					if (group.activeCount() >= 5)
 					{
 						logger.warn("Too many jobs active.  Pausing monitor thread");
-						
+
 						Thread.sleep(10 * 1000);
-						
+
 						break;
 					}
 
@@ -295,9 +313,9 @@ class Monitor extends Thread
 					for (int i = 0; i < count && i < active.length; i++)
 					{
 						Thread t = active[i];
-						if(t == null)
+						if (t == null)
 							continue;
-						
+
 						if (name.equals(t.getName()))
 						{
 							logger.warn("Unable to start thread for " + job
@@ -323,18 +341,18 @@ class Monitor extends Thread
 			catch (InterruptedException ex)
 			{
 				logger.fatal("Monitor thread interrupted", ex);
-				
+
 				LogManager.shutdown();
-				
+
 				System.exit(1);
 			}
 			catch (Throwable ex)
 			{
 				logger.fatal("Uncaught exception while processing jobs. "
 						+ "Monitor thread shutdown", ex);
-				
+
 				LogManager.shutdown();
-				
+
 				System.exit(1);
 			}
 		}
@@ -351,17 +369,39 @@ class Monitor extends Thread
 		join(10 * 1000);
 	}
 
-	private boolean isReportReady(Exam exam)
+	private boolean isExamReadyForSend(Exam exam, Job job)
 	{
 		String status = exam.getStatus();
+		boolean noReport = job.isSendOnComplete();
 
 
 		if ("FINALIZED".equals(status))
 			return true;
 		else if ("NON-REPORTABLE".equals(status))
 			return true;
+		else if (noReport && ArrayUtils.contains(IMAGES_AVAILABLE, status))
+			return true;
 		else
 			return false;
+	}
+
+	private boolean isDelayNeeded(Exam exam, Job job)
+	{
+		if (job.isSendOnComplete())
+			return false;
+
+		long age = System.currentTimeMillis()
+				- exam.getStatusTimestamp().getTime();
+
+		if (age < 0)
+			age = 0;
+
+		long delay = job.getDelay() * 3600000L;
+
+		if (delay < 0)
+			delay = 0;
+
+		return age < delay;
 	}
 
 }
