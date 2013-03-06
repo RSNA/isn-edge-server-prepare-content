@@ -31,6 +31,7 @@ import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 import org.rsna.isn.dao.JobDao;
 import org.rsna.isn.domain.Exam;
+import static org.rsna.isn.domain.Exam.*;
 import org.rsna.isn.domain.Job;
 
 /**
@@ -48,8 +49,8 @@ class Monitor extends Thread
 
 	private static final String IMAGES_AVAILABLE[] =
 	{
-		"COMPLETED", "DICTATED", "PRELIMINARY", "FINALIZED", "REVISED",
-		"ADDENDED", "NON-REPORTABLE"
+		COMPLETED, DICTATED, PRELIMINARY, FINALIZED, REVISED,
+		ADDENDED, NON_REPORTABLE
 	};
 
 	private final ThreadGroup group = new ThreadGroup("workers");
@@ -375,9 +376,9 @@ class Monitor extends Thread
 		boolean noReport = job.isSendOnComplete();
 
 
-		if ("FINALIZED".equals(status))
+		if (FINALIZED.equals(status))
 			return true;
-		else if ("NON-REPORTABLE".equals(status))
+		else if (NON_REPORTABLE.equals(status))
 			return true;
 		else if (noReport && ArrayUtils.contains(IMAGES_AVAILABLE, status))
 			return true;

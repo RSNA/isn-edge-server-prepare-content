@@ -241,7 +241,7 @@ class Worker extends Thread
 					// Some PACS systems (e.g. Intelerad) do an asynchronous
 					// C-MOVE
 					ConfigurationDao configDao = new ConfigurationDao();
-					String config = configDao.getConfiguration("fail_on_incomplete_study");
+					String config = configDao.getConfiguration("fail-on-incomplete-study");
 					boolean fail = Boolean.parseBoolean(config);
 
 					dirCount = waitForImages(studyDir, expectedCount);
@@ -324,7 +324,7 @@ class Worker extends Thread
 
 
 		ConfigurationDao config = new ConfigurationDao();
-		String str = config.getConfiguration("retrieve-timeout-secs");
+		String str = config.getConfiguration("retrieve-timeout-in-secs");
 
 		long timeout = NumberUtils.toLong(str, 600) * 1000L;
 		long start = System.currentTimeMillis();
