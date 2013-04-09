@@ -23,12 +23,16 @@
  */
 package org.rsna.isn.prepcontent;
 
+import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import org.apache.commons.lang.ArrayUtils;
+import org.apache.commons.lang.math.NumberUtils;
+import org.apache.commons.lang.time.DateUtils;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
+import org.rsna.isn.dao.ConfigurationDao;
 import org.rsna.isn.dao.JobDao;
 import org.rsna.isn.domain.Exam;
 import static org.rsna.isn.domain.Exam.*;
@@ -68,8 +72,29 @@ class Monitor extends Thread
 	{
 		logger.info("Started monitor thread");
 
-		JobDao dao = new JobDao();
+		
 
+		int retryDelay;
+		try
+		{
+			ConfigurationDao configDao = new ConfigurationDao();
+			String value = configDao.getConfiguration("retry-delay-in-mins");
+			
+			int delay = NumberUtils.toInt(value, 10);
+			logger.info("Setting retry delay to " + delay + " minute(s).");
+			
+			retryDelay = (int) (delay * DateUtils.MILLIS_PER_MINUTE * -1);
+		}
+		catch (Exception ex)
+		{
+			logger.fatal("Uncaught exception while loading configuration.", ex);
+
+			return;
+		}
+		
+		
+		
+		JobDao dao = new JobDao();
 		try
 		{
 			Set<Job> interruptedJobs = new HashSet<Job>();
@@ -336,6 +361,23 @@ class Monitor extends Thread
 						worker.start();
 					}
 				}
+				
+				
+				logger.debug("Retrieving list of jobs to retry...");
+				Date now = new Date();
+				Date lastUpdate = DateUtils.addMilliseconds(now, retryDelay);
+				Set<Job> jobsToRetry = 
+						dao.findRetryableJobs(lastUpdate, Job.RSNA_DICOM_C_MOVE_FAILED);
+				
+				for(Job job : jobsToRetry)
+				{
+					int jobId = job.getJobId();
+					if(dao.retryJob(jobId))
+					{
+						logger.warn("Retried job #" + jobId);
+					}
+				}
+				
 
 				sleep(1000);
 			}
