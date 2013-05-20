@@ -20,6 +20,14 @@
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
  * USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
  * OF SUCH DAMAGE.
+ * 
+ * 
+ * 
+ * 
+ * 
+ * 3.1.0:
+ *		05/20/2013: Wyatt Tellis
+ *			- Switched to using ScpAssociationListener to track retried jobs
  */
 package org.rsna.isn.prepcontent.dcm;
 
@@ -56,7 +64,7 @@ import org.rsna.isn.util.Environment;
  *
  * @author Wyatt Tellis
  * @version 2.1.0
- * @since 2.1.0
+ * @since 3.1.0
  */
 public class Scp
 {
@@ -197,6 +205,9 @@ public class Scp
 		CStoreHandler cstore = new CStoreHandler(sopClassUids);
 		ae.register(cstore);
 		ae.addAssociationListener(cstore);
+		
+		
+		ae.addAssociationListener(new ScpAssociationListener());
 
 
 		for (String sopClassUid : sopClassUids)

@@ -20,17 +20,23 @@
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
  * USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
  * OF SUCH DAMAGE.
+ * OF SUCH DAMAGE.
+ * 
+ * 
+ * 
+ * 
+ * 
+ * 3.1.0:
+ *		05/20/2013: Wyatt Tellis
+ *			- Moved logic for handling retryable jobs to ScpAssociationListener
  */
 package org.rsna.isn.prepcontent.dcm;
 
 import java.io.File;
 import java.io.IOException;
-import java.sql.SQLException;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import org.apache.commons.lang.StringUtils;
 import org.apache.log4j.Logger;
 import org.dcm4che2.data.BasicDicomObject;
@@ -66,9 +72,6 @@ public class CStoreHandler extends DicomService implements CStoreSCP, Associatio
 	private static final ThreadLocal<Map<String, List<Job>>> jobsMap =
 			new ThreadLocal<Map<String, List<Job>>>();
 
-	private static final ThreadLocal<Set<Job>> jobsToRetry =
-			new ThreadLocal<Set<Job>>();
-
 	public final File dcmDir;
 
 	public CStoreHandler(String[] sopClasses)
@@ -82,8 +85,6 @@ public class CStoreHandler extends DicomService implements CStoreSCP, Associatio
 	public void associationAccepted(AssociationAcceptEvent event)
 	{
 		jobsMap.set(new HashMap<String, List<Job>>());
-
-		jobsToRetry.set(new HashSet<Job>());
 	}
 
 	@Override
@@ -150,7 +151,6 @@ public class CStoreHandler extends DicomService implements CStoreSCP, Associatio
 							"No pending jobs associated with this study.");
 				}
 
-				Set<Job> retries = jobsToRetry.get();
 				for (Job job : jobs)
 				{
 					int status = job.getStatus();
@@ -159,7 +159,7 @@ public class CStoreHandler extends DicomService implements CStoreSCP, Associatio
 						dao.updateStatus(job, Job.RSNA_STARTED_DICOM_C_MOVE,
 								"Receiving images for study " + studyUid);
 
-						retries.add(job);
+						ScpAssociationListener.addJobToRetry(as, job);
 
 						logger.warn("Flagging " + job + " as in progress.");
 					}
@@ -213,34 +213,6 @@ public class CStoreHandler extends DicomService implements CStoreSCP, Associatio
 	@Override
 	public void associationClosed(AssociationCloseEvent event)
 	{
-		JobDao dao = new JobDao();
-
-		Set<Job> jobs = jobsToRetry.get();
-		for (Job job : jobs)
-		{
-			try
-			{
-				Job retry = dao.getJobById(job.getJobId());
-				if (retry == null) // Shouldn't happen but just in case
-					continue;
-
-				int status = retry.getStatus();
-				if (status == Job.RSNA_STARTED_DICOM_C_MOVE)
-				{
-					dao.updateStatus(job,
-							Job.RSNA_WAITING_FOR_PREPARE_CONTENT, "Retried by SCP");
-
-					logger.warn("Retrying " + job);
-				}
-			}
-			catch (SQLException ex)
-			{
-				logger.warn("Unable to retry " + job, ex);
-			}
-		}
-
-
-		jobsToRetry.remove();
 		jobsMap.remove();
 	}
 
