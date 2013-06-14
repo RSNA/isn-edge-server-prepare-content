@@ -24,6 +24,7 @@
 package org.rsna.isn.prepcontent;
 
 import java.io.File;
+import java.io.IOException;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.List;
@@ -303,7 +304,7 @@ class Worker extends Thread
 			{
 				logger.error("Uncaught exception while processing job " + job, ex);
 
-				dao.updateStatus(job, Job.RSNA_FAILED_TO_PREPARE_CONTENT, ex);
+				dao.updateStatus(job, Job.RSNA_DICOM_C_MOVE_FAILED, ex);
 			}
 		}
 		catch (SQLException ex)
