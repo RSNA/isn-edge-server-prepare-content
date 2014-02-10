@@ -62,7 +62,7 @@ import org.rsna.isn.util.FileUtil;
  * Handler for C-STORE requests
  *
  * @author Wyatt Tellis
- * @version 3.1.0
+ * @version 3.2.0
  * @since 2.1.0
  */
 public class CStoreHandler extends DicomService implements CStoreSCP, AssociationListener
@@ -132,6 +132,14 @@ public class CStoreHandler extends DicomService implements CStoreSCP, Associatio
 						Status.ProcessingFailure, "SOP instance UID is empty");
 			}
 
+                        String seriesUid = dcmObj.getString(Tag.SeriesInstanceUID);
+			if (StringUtils.isBlank(seriesUid))
+			{
+				logger.warn("Series instance UID is empty");
+
+				throw new DicomServiceException(cmd,
+						Status.ProcessingFailure, "Series instance UID is empty");
+			}
 
 			String key = mrn + "/" + accNum;
 			Map<String, List<Job>> map = jobsMap.get();
