@@ -33,6 +33,7 @@ import org.dcm4che2.net.NetworkApplicationEntity;
 import org.dcm4che2.net.NetworkConnection;
 import org.dcm4che2.net.NewThreadExecutor;
 import org.dcm4che2.net.TransferCapability;
+import org.dcm4che2.tool.dcmecho.DcmEcho;
 import org.rsna.isn.dao.ConfigurationDao;
 import org.rsna.isn.domain.Device;
 
@@ -101,4 +102,36 @@ public class DcmUtil
 		
 		return null;
 	}
+        
+        public static String CEcho(String host,int port,String aet) throws SQLException 
+        {
+                    ConfigurationDao config = new ConfigurationDao();
+                    String device = config.getConfiguration("scu-ae-title");
+                    
+                    DcmEcho dcmecho = new DcmEcho(device);
+                    dcmecho.setRemoteHost(host);
+                    dcmecho.setRemotePort(port);
+                    dcmecho.setCalledAET(aet, true);
+                    
+                    try 
+                    {
+                            dcmecho.open();
+                    } 
+                    catch (Exception e) 
+                    {
+                        return "Failed to establish association:" + e.getMessage();
+                    }
+                    
+                    try
+                    {
+                            dcmecho.echo();
+                            dcmecho.close(); 
+                    } 
+                    catch (Exception e) 
+                    {
+                            return e.getMessage();
+                    } 
+                     
+                    return "Successfully connected to " + host;
+        }
 }
