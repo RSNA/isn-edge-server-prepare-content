@@ -5,7 +5,7 @@
 	<groupId>org.rsna.isn</groupId>
 	<artifactId>prep-content</artifactId>
 	<packaging>jar</packaging>
-	<version>3.1.0-t2</version>
+	<version>3.2.0-t1</version>
 	<name>RSNA ISN - Prepare Content Application</name>
 	<url>http://www.rsna.org/</url>
 	<build>
@@ -63,6 +63,27 @@
 					<encoding>${project.build.sourceEncoding}</encoding>
 				</configuration>
 			</plugin>
+                        
+                        <plugin>
+                                <groupId>org.apache.maven.plugins</groupId>
+                                <artifactId>maven-shade-plugin</artifactId>
+                                <version>2.1</version>
+                                <executions>
+                                    <execution>
+                                        <phase>package</phase>
+                                        <goals>
+                                            <goal>shade</goal>
+                                        </goals>
+                                        <configuration>
+                                            <transformers>
+                                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                                                    <mainClass>org.rsna.isn.prepcontent.App</mainClass>
+                                                </transformer>
+                                            </transformers>
+                                        </configuration>
+                                    </execution>
+                                </executions>
+                        </plugin>
 		</plugins>
 		
 		
@@ -96,7 +117,13 @@
 			<artifactId>dcm4che-net</artifactId>
 			<version>2.0.26</version>
 		</dependency>
-
+                
+                <dependency>
+                  <groupId>dcm4che.tool</groupId>
+                  <artifactId>dcm4che-tool-dcmecho</artifactId>
+                  <version>2.0.28</version>
+                        <type>jar</type>
+                </dependency>  
 		<dependency>
 			<groupId>junit</groupId>
 			<artifactId>junit</artifactId>
