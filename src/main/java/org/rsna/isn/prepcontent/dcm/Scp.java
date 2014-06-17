@@ -63,8 +63,8 @@ import org.rsna.isn.util.Environment;
  * configuration from the database and starting the TCP/IP listener. 
  *
  * @author Wyatt Tellis
- * @version 2.1.0
- * @since 3.1.0
+ * @version 3.2.0
+ * @since 2.1.0
  */
 public class Scp
 {
@@ -107,13 +107,15 @@ public class Scp
 		this.aeTitle = StringUtils.defaultIfEmpty(dao.getConfiguration("scp-ae-title"), "RSNA-ISN");
 		int maxSendPduLength = NumberUtils.toInt(dao.getConfiguration("scp-max-send-pdu-length"), 16364);
 		int maxReceivePduLength = NumberUtils.toInt(dao.getConfiguration("scp-max-receive-pdu-length"), 16364);
-
+                int idleTimeout = NumberUtils.toInt(dao.getConfiguration("scp-idle-timeout"), 60000);
+                
 
 		NetworkApplicationEntity ae = new NetworkApplicationEntity();
 		ae.setAETitle(aeTitle);
 		ae.setMaxPDULengthSend(maxSendPduLength);
 		ae.setMaxPDULengthReceive(maxReceivePduLength);
 		ae.setAssociationAcceptor(true);
+                ae.setIdleTimeout(idleTimeout);
 
 
 		List<TransferCapability> capabilities = new ArrayList<TransferCapability>();
