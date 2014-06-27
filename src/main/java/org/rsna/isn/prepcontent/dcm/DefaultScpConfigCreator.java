@@ -38,15 +38,14 @@ class DefaultScpConfigCreator
 
 	private static final String[] TS =
 	{
-		UID.ImplicitVRLittleEndian,
-		UID.ExplicitVRLittleEndian,
-		UID.ExplicitVRBigEndian,
-		UID.JPEGBaseline1,
-		UID.JPEGExtended24,
-		UID.JPEGLosslessNonHierarchical14,
-		UID.JPEGLossless,
-		UID.MPEG2,
-		UID.RLELossless
+                UID.RLELossless,
+                UID.JPEG2000,
+                UID.JPEG2000LosslessOnly,
+                UID.JPEGLossless,
+                UID.JPEGLosslessNonHierarchical14,
+                UID.JPEGBaseline1,
+                UID.ExplicitVRLittleEndian,
+                UID.ImplicitVRLittleEndian      
 	};
 
 	private static final String[] CUIDS =
