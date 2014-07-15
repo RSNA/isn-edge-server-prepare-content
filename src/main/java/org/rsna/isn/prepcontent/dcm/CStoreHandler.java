@@ -29,20 +29,33 @@
  * 3.1.0:
  *		05/20/2013: Wyatt Tellis
  *			- Moved logic for handling retryable jobs to ScpAssociationListener
+ *
+ *
+ * 3.1.1:
+ *		07/03/2014: Wyatt Tellis
+ *			- Changed the way images are handled.  Images are now stored to a
+ *			  temp file first and then only the header is read back into memory.
+ *			  This change is required because calling PDVInputStream.readDataset
+ *            loads the entire object into memory. 
  */
 package org.rsna.isn.prepcontent.dcm;
 
+import java.io.BufferedOutputStream;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.log4j.Logger;
 import org.dcm4che2.data.BasicDicomObject;
 import org.dcm4che2.data.DicomObject;
 import org.dcm4che2.data.Tag;
+import org.dcm4che2.io.DicomInputStream;
 import org.dcm4che2.io.DicomOutputStream;
+import org.dcm4che2.io.StopTagInputHandler;
 import org.dcm4che2.net.Association;
 import org.dcm4che2.net.AssociationAcceptEvent;
 import org.dcm4che2.net.AssociationCloseEvent;
@@ -62,23 +75,27 @@ import org.rsna.isn.util.FileUtil;
  * Handler for C-STORE requests
  *
  * @author Wyatt Tellis
- * @version 3.1.0
+ * @version 3.1.1
  * @since 2.1.0
  */
 public class CStoreHandler extends DicomService implements CStoreSCP, AssociationListener
 {
 	private static final Logger logger = Logger.getLogger(CStoreHandler.class);
 
-	private static final ThreadLocal<Map<String, List<Job>>> jobsMap =
-			new ThreadLocal<Map<String, List<Job>>>();
+	private static final ThreadLocal<Map<String, List<Job>>> jobsMap
+			= new ThreadLocal<Map<String, List<Job>>>();
 
 	public final File dcmDir;
+
+	public final File tmpDir;
 
 	public CStoreHandler(String[] sopClasses)
 	{
 		super(sopClasses);
 
 		this.dcmDir = Environment.getDcmDir();
+
+		this.tmpDir = Environment.getTmpDir();
 	}
 
 	@Override
@@ -91,11 +108,37 @@ public class CStoreHandler extends DicomService implements CStoreSCP, Associatio
 	public void cstore(Association as, int pcid, DicomObject cmd,
 			PDVInputStream dataStream, String tsuid) throws DicomServiceException, IOException
 	{
+		String cuid = cmd.getString(Tag.AffectedSOPClassUID);
+		String iuid = cmd.getString(Tag.AffectedSOPInstanceUID);
+
+		File tmpFile = File.createTempFile(iuid + "-", ".dcm", tmpDir);
 		try
 		{
-			DicomObject dcmObj = dataStream.readDataset();
+			// Write object to disk because calling dataStream.readDataset()
+			// will load the entire object into memory resulting in potential
+			// out of memory errors
 
-			String mrn = dcmObj.getString(Tag.PatientID);
+
+			DicomOutputStream dos = new DicomOutputStream(
+					new BufferedOutputStream(
+							new FileOutputStream(tmpFile)));
+
+			BasicDicomObject fmi = new BasicDicomObject();
+			fmi.initFileMetaInformation(cuid, iuid, tsuid);
+			dos.writeFileMetaInformation(fmi);
+
+			dataStream.copyTo(dos);
+			dos.close();
+
+
+			// Read in just the header
+			DicomInputStream din = new DicomInputStream(tmpFile);
+			din.setHandler(new StopTagInputHandler(Tag.PixelData));
+
+			DicomObject header = din.readDicomObject();
+			din.close();
+
+			String mrn = header.getString(Tag.PatientID);
 			if (StringUtils.isBlank(mrn))
 			{
 				logger.warn("Patient id is empty");
@@ -104,7 +147,7 @@ public class CStoreHandler extends DicomService implements CStoreSCP, Associatio
 						Status.ProcessingFailure, "Patient id is empty");
 			}
 
-			String accNum = dcmObj.getString(Tag.AccessionNumber);
+			String accNum = header.getString(Tag.AccessionNumber);
 			if (StringUtils.isBlank(accNum))
 			{
 				logger.warn("Accession number is empty");
@@ -113,7 +156,7 @@ public class CStoreHandler extends DicomService implements CStoreSCP, Associatio
 						Status.ProcessingFailure, "Accession number is empty");
 			}
 
-			String studyUid = dcmObj.getString(Tag.StudyInstanceUID);
+			String studyUid = header.getString(Tag.StudyInstanceUID);
 			if (StringUtils.isBlank(studyUid))
 			{
 				logger.warn("Study UID is empty");
@@ -123,7 +166,7 @@ public class CStoreHandler extends DicomService implements CStoreSCP, Associatio
 			}
 
 
-			String instanceUid = dcmObj.getString(Tag.SOPInstanceUID);
+			String instanceUid = header.getString(Tag.SOPInstanceUID);
 			if (StringUtils.isBlank(instanceUid))
 			{
 				logger.warn("SOP instance UID is empty");
@@ -180,17 +223,8 @@ public class CStoreHandler extends DicomService implements CStoreSCP, Associatio
 
 				studyDir.mkdirs();
 
-				BasicDicomObject fmi = new BasicDicomObject();
-				String classUid = dcmObj.getString(Tag.SOPClassUID);
-				fmi.initFileMetaInformation(classUid, instanceUid, tsuid);
-
-
 				File dcmFile = FileUtil.newFile(studyDir, instanceUid + ".dcm");
-				DicomOutputStream dout = new DicomOutputStream(dcmFile);
-				dout.writeFileMetaInformation(fmi);
-				dout.writeDataset(dcmObj, tsuid);
-
-				dout.close();
+				FileUtils.copyFile(tmpFile, dcmFile);
 
 				logger.info("Saved file " + dcmFile + " for " + job);
 			}
@@ -208,6 +242,11 @@ public class CStoreHandler extends DicomService implements CStoreSCP, Associatio
 
 			throw new DicomServiceException(cmd, Status.ProcessingFailure, ex.getMessage());
 		}
+		finally
+		{
+			tmpFile.delete();
+		}
+
 	}
 
 	@Override
