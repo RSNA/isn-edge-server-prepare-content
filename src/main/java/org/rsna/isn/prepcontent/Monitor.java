@@ -147,7 +147,7 @@ class Monitor extends Thread
 					{
 						if ("CANCELED".equals(exam.getStatus()))
 						{
-							dao.updateStatus(job, Job.RSNA_UNABLE_TO_FIND_IMAGES,
+							dao.updateStatus(job, Job.RSNA_EXAM_CANCELED,
 									"Exam has been canceled");
 
 							logger.warn("Exam has been canceled for " + job);
