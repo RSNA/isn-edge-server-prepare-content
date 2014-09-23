@@ -38,7 +38,7 @@ public class CEcho
         public static String CEcho(String host,int port,String aet) throws SQLException 
         {
                     ConfigurationDao config = new ConfigurationDao();
-                    String device = config.getConfiguration("scp-ae-title");
+                    String device = config.getConfiguration("scu-ae-title");
                     
                     DcmEcho dcmecho = new DcmEcho(device);
                     dcmecho.setRemoteHost(host);
