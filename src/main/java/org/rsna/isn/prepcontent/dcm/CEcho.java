@@ -24,12 +24,15 @@
 package org.rsna.isn.prepcontent.dcm;
 
 import java.sql.SQLException;
+import java.util.Set;
 import org.dcm4che2.tool.dcmecho.DcmEcho;
 import org.rsna.isn.dao.ConfigurationDao;
+import org.rsna.isn.dao.DeviceDao;
+import org.rsna.isn.domain.Device;
         
  /*
  * @author Clifton Li
- * @version 3.2.0
+ * @version 5.0.0
  * @since 3.2.0
  */
 
@@ -65,5 +68,25 @@ public class CEcho
                     } 
                      
                     return "Successfully connected to " + host;
+        }
+        
+        public static boolean isDevicesOffline() throws SQLException 
+        {
+                    DeviceDao deviceDao = new DeviceDao();
+                    Set<Device> devices = deviceDao.getDevices();
+
+                    boolean offline = true;
+
+                    for (Device device : devices)
+                    {
+                            String message = CEcho( device.getHost(), device.getPort(), device.getAeTitle());
+
+                            if (message.startsWith("Successfully"))
+                            {
+                                    offline =  false;
+                            }  
+                    }
+
+                    return offline;
         }
 }

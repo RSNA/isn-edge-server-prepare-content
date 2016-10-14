@@ -38,6 +38,7 @@ import org.rsna.isn.dao.JobDao;
 import org.rsna.isn.domain.Device;
 import org.rsna.isn.domain.Exam;
 import org.rsna.isn.domain.Job;
+import org.rsna.isn.prepcontent.dcm.CEcho;
 import org.rsna.isn.prepcontent.dcm.CFind;
 import org.rsna.isn.prepcontent.dcm.CFindResponse;
 import org.rsna.isn.prepcontent.dcm.CMove;
@@ -50,7 +51,7 @@ import org.rsna.isn.util.FileUtil;
  *
  * @author Wyatt Tellis
  * @since 1.0.0
- * @version 3.1.0
+ * @version 5.0.0
  */
 class Worker extends Thread
 {
@@ -91,12 +92,20 @@ class Worker extends Thread
 
 				return;
 			}
-
-
-
+                                                                                     
 			try
-			{
-				List<CFindResponse> findRsps = CFind.findStudies(job);
+                        {	
+                                if (CEcho.isDevicesOffline())
+                                {
+   					dao.updateStatus(job, Job.RSNA_NO_DEVICES_FOUND,
+							"Unable to communicate with devices.");
+
+					logger.error("Unable to communicate with devices. " + job + " failed.");
+                                        
+                                        return;
+                                }
+                                
+                                List<CFindResponse> findRsps = CFind.findStudies(job);                          
 				if (findRsps.isEmpty())
 				{
 					dao.updateStatus(job, Job.RSNA_UNABLE_TO_FIND_IMAGES,

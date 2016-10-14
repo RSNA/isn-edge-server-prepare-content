@@ -50,7 +50,7 @@ import org.rsna.isn.domain.Job;
  *
  * @author Wyatt Tellis
  * @since 3.1.0
- * @version 3.1.0
+ * @version 5.0.0
  */
 public class CFind
 {
@@ -170,12 +170,16 @@ public class CFind
 		Set<Device> devices = deviceDao.getDevices();
 		for (Device device : devices)
 		{
-			CFind cfind = new CFind(device, job);
-			List<CFindResponse> temp = cfind.doFind();
-
-			responses.addAll(temp);
-		}
-
+                        String message = CEcho.CEcho(device.getHost(), device.getPort(), device.getAeTitle());
+                        
+                        if (message.startsWith("Successfully"))
+                        {
+                            CFind cfind = new CFind(device, job);
+                            List<CFindResponse> temp = cfind.doFind();
+                                
+                            responses.addAll(temp);
+                        }   
+                }                   
 		return responses;
 	}
 

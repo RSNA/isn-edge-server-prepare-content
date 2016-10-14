@@ -44,7 +44,7 @@ import org.rsna.isn.domain.Job;
  * concurrent worker threads are allowed.
  *
  * @author Wyatt Tellis
- * @version 3.1.0
+ * @version 5.0.0
  * @since 1.0.0
  */
 class Monitor extends Thread
@@ -367,7 +367,7 @@ class Monitor extends Thread
 				Date now = new Date();
 				Date lastUpdate = DateUtils.addMilliseconds(now, retryDelay);
 				Set<Job> jobsToRetry = 
-						dao.findRetryableJobs(lastUpdate, Job.RSNA_DICOM_C_MOVE_FAILED);
+						dao.findRetryableJobs(lastUpdate, Job.RSNA_DICOM_C_MOVE_FAILED,Job.RSNA_NO_DEVICES_FOUND);
 				
 				for(Job job : jobsToRetry)
 				{
